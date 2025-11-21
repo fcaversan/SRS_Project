@@ -1,0 +1,46 @@
+User Requirements Document (URD)
+Electric Car Management Mobile Application
+
+As a member of the car engineering team, I need a mobile application to manage and monitor our electric vehicles. Here are my requirements:
+
+Vehicle Monitoring:
+- I want to see the current battery level of the vehicle in real-time
+- I need to monitor the charging status and time remaining for full charge
+- I want to track the vehicle's location and route history
+- I need to see energy consumption patterns and efficiency metrics
+
+Charging Management:
+- I want to find nearby charging stations with availability status
+- I need to schedule charging sessions and set charging limits
+- I want to receive notifications when charging is complete
+- I need to track charging costs and history
+
+Vehicle Control:
+- I want to remotely start/stop charging
+- I need to pre-condition the cabin temperature before driving
+- I want to lock/unlock the vehicle remotely
+- I need to activate the vehicle's horn and lights for location purposes
+
+Trip Planning:
+- I want to plan routes with charging stops included
+- I need to calculate trip energy requirements
+- I want to save favorite locations and routes
+- I need weather-based range adjustments
+
+Maintenance & Diagnostics:
+- I want to receive maintenance reminders and alerts
+- I need to access vehicle diagnostic information
+- I want to schedule service appointments
+- I need to track maintenance history and costs
+
+User Experience:
+- The app should work offline with limited functionality
+- I need dark/light mode options
+- The interface should be intuitive for non-technical users
+- Response time should be under 3 seconds for most operations
+
+Security & Privacy:
+- All vehicle data should be encrypted
+- I need secure authentication (biometric if available)
+- Vehicle access should have multiple authorization levels
+- Personal data should not be shared without consent

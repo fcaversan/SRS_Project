@@ -1,0 +1,398 @@
+Software Requirements Specification (SRS) - Reviewed Version
+Generated on: 2025-10-13 22:28:25
+Note: This version addresses validation feedback and recommendations
+================================================================================
+
+**Software Requirements Specification (SRS)**
+**Electric Car Management Mobile Application**
+**Version 4.0**
+**Date: October 29, 2023**
+
+**Revision History**
+
+| Version | Date         | Author           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------|--------------|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.0     | October 26, 2023 | [Your Name]    | Initial Release                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 2.0     | October 27, 2023 | [Your Name]    | Revised to address feedback from SRS Validation Report Version 1.0. Addressed missing requirements, inconsistencies, and improved requirement quality.                                                                                                                           |
+| 3.0     | October 28, 2023 | [Your Name]    | Revised to address feedback from SRS Validation Report Version 2.0. Added stability ranking, clarified authorization levels, enhanced design constraints, improved verification methods, provided more comprehensive examples, added detailed error handling, include integration testing standards, documented performance metrics, completed TBD sections, ensured compliance with IEEE 830-1998, and enhanced overall completeness and clarity. |
+| 4.0     | October 29, 2023 | [Your Name]    | Revised to address feedback from SRS Validation Report Version 3.0. Added traceability matrix, enhanced trip planning verification method, explained trip planning calculations, added rationales for stability rankings, provided detail for functional grouping, expanded site/maintenance acceptance, and defined notification delivery with FCM and APNs.                                                                                                |
+
+**1. Introduction**
+
+**1.1 Purpose**
+
+This Software Requirements Specification (SRS) defines the complete set of requirements for the Electric Car Management Mobile Application (ECM App). This document serves as the basis of the agreement between the stakeholders and the development team.
+
+The intended audience for this SRS includes:
+
+*   Software Developers
+*   Software Testers
+*   Project Managers
+*   System Architects
+*   Quality Assurance Engineers
+*   Security Engineers
+*   Compliance Officers
+
+**1.2 Scope**
+
+This SRS specifies the requirements for a mobile application designed to manage and monitor electric vehicles. The application will provide features for vehicle monitoring, charging management, vehicle control, trip planning, and maintenance/diagnostics. This mobile app will be compatible with iOS and Android platforms and will provide functionality for authorized users to manage and control registered electric vehicles.
+
+This SRS excludes the following:
+
+*   Detailed database schema design
+*   Specific UI/UX designs (wireframes) - *These will be provided in a separate UI/UX Design Document.*
+*   Implementation-specific code details
+*   Backend server infrastructure setup
+*   Detailed security threat model and risk assessment
+
+**1.3 Definitions, Acronyms, and Abbreviations**
+
+*   **ECM App:** Electric Car Management Mobile Application
+*   **API:** Application Programming Interface
+*   **GPS:** Global Positioning System
+*   **SRS:** Software Requirements Specification
+*   **UI:** User Interface
+*   **UX:** User Experience
+*   **SOC:** State of Charge
+*   **VIN:** Vehicle Identification Number
+*   **kW:** Kilowatt (unit of power)
+*   **kWh:** Kilowatt-hour (unit of energy)
+*   **CCS:** Combined Charging System (charging connector type)
+*   **CHAdeMO:** CHArge de MOve (charging connector type)
+*   **SAE J1772:** Charging Connector Standard
+*   **GDPR:** General Data Protection Regulation
+*   **CCPA:** California Consumer Privacy Act
+*   **OWASP:** Open Web Application Security Project
+*   **TLS:** Transport Layer Security
+*   **AES:** Advanced Encryption Standard
+*   **MFA:** Multi-Factor Authentication
+*   **FCM:** Firebase Cloud Messaging
+*   **APNs:** Apple Push Notification service
+*   **UUID:** Universally Unique Identifier
+*   **TOTP:** Time-Based One-Time Password
+*   **WCAG:** Web Content Accessibility Guidelines
+*   **PCI DSS:** Payment Card Industry Data Security Standard
+
+**1.4 References**
+
+*   User Requirements Document (URD) - Electric Car Management Mobile Application, Version 1.0
+*   IEEE Std 610.12-1990, IEEE Standard Glossary of Software Engineering Terminology.
+*   IEEE Std 830-1998, IEEE Recommended Practice for Software Requirements Specifications.
+*   ISO/IEC/IEEE 29148:2018, Systems and software engineering -- Life cycle processes -- Requirements engineering
+*   GDPR: Regulation (EU) 2016/679 of the European Parliament and of the Council
+*   CCPA: California Consumer Privacy Act of 2018
+*   NIST Special Publication 800-63B, Digital Identity Guidelines: Authentication and Lifecycle Management
+*   OWASP Mobile Security Project
+*   RFC 6238: TOTP: Time-Based One-Time Password Algorithm
+*   PCI DSS 4.0: Payment Card Industry Data Security Standard Version 4.0
+
+**1.5 Overview**
+
+The remainder of this SRS document provides a detailed description of the ECM App, including the overall product perspective, product functions, user characteristics, constraints, assumptions, and specific requirements. Section 2 provides a general overview of the application. Section 3 provides functional, non-functional, and interface requirements in detail. Appendix A provides a traceability matrix linking SRS requirements to the URD.
+
+**2. Overall Description**
+
+**2.1 Product Perspective**
+
+The ECM App will be a mobile application that interacts with the electric vehicle through a secure API provided by the vehicle manufacturer's backend system. The app will be a component of a larger ecosystem, integrating with the vehicle's onboard systems, charging station networks, and potentially other services (e.g., mapping/navigation apps).
+
+The ECM App does not directly interact with the electric vehicle's hardware. All communication is via manufacturer API.
+
+*   **System Interfaces:**
+    *   The app will interact with the vehicle manufacturer's API (RESTful interface).
+    *   The API will expose endpoints for retrieving vehicle status (SOC, location, charging status), controlling vehicle functions (locking/unlocking, starting/stopping charging, pre-conditioning), and accessing maintenance/diagnostic information.
+    *   Data will be exchanged using JSON format.
+    *   Authentication will be via OAuth 2.0 with PKCE (Proof Key for Code Exchange) for enhanced security. Refresh tokens will be used to maintain session state.
+    *   The API will support versioning using semantic versioning (MAJOR.MINOR.PATCH). The app will initially support version 1.0, and will implement a mechanism to notify the user when a new version of the API is available, prompting them to update the app if necessary. Backward compatibility will be maintained where possible.
+*   **User Interfaces:**
+    *   Intuitive mobile UI, with dark/light mode options.
+    *   Supports both iOS and Android.
+    *   The UI will adhere to platform-specific guidelines (Apple Human Interface Guidelines, Android Material Design).
+    *   The UI will also support localization for English and Spanish (initially). All text elements will be stored in resource files to facilitate localization.
+    *   Accessibility will be designed based on WCAG 2.1 guidelines.
+*   **Hardware Interfaces:**
+    *   Mobile devices running iOS or Android with network connectivity (cellular/Wi-Fi) and GPS capabilities.
+    *   The app will be tested on a range of devices with varying CPU, memory, and screen sizes (see Appendix D for the device test matrix).
+*   **Software Interfaces:**
+    *   Integrates with mapping applications (e.g., Google Maps API, Apple Maps API) and charging network APIs (e.g., Electrify America, ChargePoint).
+    *   The charging network APIs will be used to retrieve charging station availability and pricing information. The app will use a standardized interface (e.g., OCPP – Open Charge Point Protocol) where available, to ensure compatibility with a wider range of charging networks.
+*   **Communication Interfaces:**
+    *   HTTP/HTTPS for API communication (TLS 1.3 or higher).
+    *   GPS for location tracking.
+    *   Push Notifications (using FCM for Android and APNs for iOS) for alerts. Push notifications will be encrypted end-to-end to protect sensitive information.
+
+**2.2 Product Functions**
+
+The ECM App will provide the following major functions, prioritized from highest to lowest. *Functional groups are defined by the primary functionality they provide to the user*:
+
+1.  **Vehicle Monitoring:** Displays real-time battery level, charging status, location, energy consumption metrics, and route history.
+2.  **Charging Management:** Locates nearby charging stations, schedules charging sessions, sets charging limits, and tracks charging costs/history.
+3.  **Vehicle Control:** Remotely starts/stops charging, pre-conditions cabin temperature, locks/unlocks vehicle, and activates horn/lights. *User confirmation will be required for critical operations like remotely starting/stopping charging.*
+4.  **Trip Planning:** Plans routes with charging stops, calculates trip energy requirements, and saves favorite locations/routes. Adjusts range based on weather conditions.
+5.  **Maintenance & Diagnostics:** Displays maintenance reminders/alerts, accesses vehicle diagnostic information, schedules service appointments, and tracks maintenance history/costs.
+
+**2.3 User Characteristics**
+
+The primary users of the ECM App are car engineering team members, typically with varying degrees of technical expertise. The application should be intuitive to use for both technical and non-technical users.
+
+*   **Education Level:** High school diploma or equivalent (minimum).
+*   **Experience:** Ranging from novice mobile app users to experienced automotive engineers.  *Approximately 60% of users are expected to be familiar with mobile apps.*
+*   **Technical Expertise:** Varies significantly across user groups. The UI/UX should be designed to cater to the least technically savvy user (40%) while providing advanced features for experienced users (60%). UI/UX guidelines will emphasize simplicity and ease of use. The UI will provide context-sensitive help and tutorials to assist users with less technical expertise.
+
+**2.4 Constraints**
+
+*   **Regulatory Policies:**
+    *   Complies with all relevant data privacy regulations (e.g., GDPR, CCPA).
+    *   *Specifically, the app will implement consent management for data collection and sharing, provide users with the right to access, rectify, and erase their personal data, and comply with data localization requirements where applicable. Consent will be obtained through an explicit opt-in mechanism, and users will be able to revoke consent at any time.*
+    *   Data will be retained only for as long as necessary and will be anonymized where possible.
+    *   Data residency will be in accordance with EU regulations.
+*   **Hardware Limitations:**
+    *   App must perform acceptably on a range of mobile devices (CPU, memory, screen size).
+    *   *Acceptable performance is defined as a frame rate of at least 30 FPS and a memory footprint of less than 200MB on devices with at least 2GB of RAM.  Performance testing will be conducted on a representative set of devices (see Appendix D).*
+*   **API Availability:**
+    *   Functionality depends on the availability and reliability of the vehicle manufacturer's API.
+    *   *The app will implement retry mechanisms and fallback strategies to handle API outages. A circuit breaker pattern will be implemented to prevent cascading failures. In the event of prolonged API outages, the app will display a clear error message to the user and provide information about the outage.*
+*   **Security:**
+    *   Vehicle control functions must be secured against unauthorized access.
+    *   *The app will use TLS 1.3 or higher for secure communication, implement multi-factor authentication (MFA) using TOTP (Time-Based One-Time Password) based on RFC 6238, and encrypt sensitive data at rest using AES-256 encryption. User confirmation will be required to complete the operation.*
+    *   Key management will be performed using a secure key store provided by the operating system (e.g., Android Keystore, iOS Keychain). Keys will be rotated regularly.
+    *   The app will implement jailbreak/root detection to prevent running on compromised devices.
+    *   The application will comply with OWASP Mobile Security Project guidelines.
+*   **Offline Functionality:** Limited offline functionality is required (e.g., viewing saved locations/routes).
+*   **Response Time:** Critical operations (e.g., remote lock/unlock, start/stop charging) should have a response time under 3 seconds.
+*   **Mobile OS Versions:** Supports Android 8.0 (Oreo) and above, and iOS 13 and above.
+*   **Accessibility:** The application will adhere to WCAG 2.1 AA guidelines.
+
+**2.5 Assumptions and Dependencies**
+
+*   The vehicle manufacturer will provide a stable and well-documented API for accessing vehicle data and control functions.
+*   Users will have a valid account and authorized access to the electric vehicle.
+*   Internet connectivity (cellular/Wi-Fi) will be available for most functions.
+*   GPS functionality will be available on the user's mobile device.
+*   Mapping data will be available through third-party mapping services (e.g., Google Maps API, Apple Maps API). *The app will use the free tier of these APIs initially, with the option to upgrade to a paid plan if usage exceeds the free tier limits.*
+*   Charging station data will be available through public APIs from charging network providers (e.g. Electrify America, ChargePoint). The app will implement caching mechanisms to minimize API calls and improve performance.
+
+**3. Specific Requirements**
+
+**3.1 External Interface Requirements**
+
+*   **API Interface:**
+    *   **API-1.0:** The application shall communicate with the vehicle manufacturer’s API using HTTPS.
+        *   **Priority:** High
+        *   **Stability:** Stable (Communication protocol is unlikely to change significantly).
+        *   **URD Ref:** URD-1
+    *   **API-1.1:** The application shall use a JSON format for requests and responses.
+        *   **Priority:** High
+        *   **Stability:** Stable (Data format is unlikely to change significantly).
+        *   **URD Ref:** URD-1
+    *   **API-1.2:** The application shall handle API authentication according to the manufacturer’s specifications (e.g., OAuth 2.0 with PKCE).
+        *   **Priority:** High
+        *   **Stability:** Expected to Change (Authentication methods may evolve for enhanced security).
+        *   **URD Ref:** URD-1
+    *   **API-1.3:** *The app will support version 1.0 of the [Manufacturer Name] API. Error handling will log the error received, display a user-friendly error message in the app, and then provide an option to retry the operation.* If the API supports more than 3 retries, the exponential backoff will not take place.
+        *   **Priority:** High
+        *   **Stability:** Expected to Change (API versions from the manufacture can change)
+        *   **URD Ref:** URD-1
+        *   **Error Handling:** Implement error handling for common API errors (e.g., 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 500 Internal Server Error). Display user-friendly error messages and log detailed error information for debugging purposes. Use standard error codes.
+    *   **API-1.4:** *The API version will be provided by the manufacturer and used within the application.*
+        *   **Priority:** High
+        *   **Stability:** Volatile (Due to potential for manufacturer-driven API changes and requirements)
+        *   **URD Ref:** URD-1
+*   **User Interface:**
+    *   **UI-1.0:** The application shall have a responsive UI that adapts to different screen sizes and orientations.
+        *   **Priority:** High
+        *   **Stability:** Stable (Responsive design is a standard requirement).
+        *   **URD Ref:** URD-2
+    *   **UI-1.1:** The application shall provide a dark/light mode option for the user.
+        *   **Priority:** High
+        *   **Stability:** Stable (Standard UI feature).
+        *   **URD Ref:** URD-2
+    *   **UI-1.2:** The application shall use clear and concise labels for all UI elements.
+        *   **Priority:** High
+        *   **Stability:** Stable (Basic UI principle).
+        *   **URD Ref:** URD-2
+    *   **UI-1.3:** The main dashboard screen shall provide a quick overview of the vehicle's current state of charge (SOC), location, and charging status.
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-2
+    *   **UI-1.4:** *All UI elements should be designed for accessibility, complying with WCAG 2.1 AA standards, including providing alternative text for images and ensuring sufficient color contrast. Text and UI elements will be adaptable to the system font size settings. UI elements shall be designed for localization including bidirectional UI and font support.*
+         *   **Priority:** Medium
+         *   **Stability:** Stable (Accessibility is a long-term requirement).
+         *   **URD Ref:** URD-2
+         *   **WCAG Conformance:** The app will be tested using automated accessibility testing tools (e.g., Accessibility Scanner for Android, Accessibility Inspector for iOS) and manual testing to ensure conformance with WCAG 2.1 AA guidelines. The accessibility report will be published during implementation.
+*   **Mapping Interface:**
+    *   **MAP-1.0:** The application shall integrate with a mapping service (Google Maps API or Apple Maps API) to display vehicle location and nearby charging stations.
+        *   **Priority:** High
+        *   **Stability:** Expected to Change (Dependence on 3rd party mapping libraries and updates).
+        *   **URD Ref:** URD-3
+    *   **MAP-1.1:** The application shall be able to display routes, including charging stops.
+        *   **Priority:** High
+        *   **Stability:** Expected to Change (Dependence on 3rd party mapping libraries and updates).
+        *   **URD Ref:** URD-3
+*   **Notification Interface:**
+    *   **NOT-1.0:** The application shall send push notifications to the user to provide alerts and updates (e.g., charging complete, maintenance reminders).
+        *   **Priority:** High
+        *   **Stability:** Stable (Push notification functionality is a core requirement.)
+        *   **URD Ref:** URD-4
+    *   **NOT-1.1:** The application shall allow the user to customize notification preferences.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Customization of notifications is a user preference setting).
+        *   **URD Ref:** URD-4
+
+**3.2 Functional Requirements**
+
+*   **Vehicle Monitoring:**
+    *   **VM-1.0:** The application shall display the vehicle's current battery level (SOC) in real-time. *'Real-time' is defined as an update frequency of every 10 seconds.*
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-5
+        *   **Verification:** Compare the SOC value displayed in the app with the SOC value reported by the vehicle's onboard system using a diagnostic tool. The values must match within +/- 1%. This will be tested using a CAN bus analyzer to directly monitor the vehicle's internal communication.
+    *   **VM-1.1:** The application shall display the vehicle's current charging status (charging/not charging) and, if charging, the estimated time remaining for a full charge.
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-5
+        *   **Verification:** Compare the charging status and time remaining displayed in the app with the values reported by the vehicle's onboard system using a diagnostic tool. The values must match, and the estimated time remaining must be accurate to within +/- 5 minutes. This will be verified using a calibrated power meter to measure the actual charging rate.
+    *   **VM-1.2:** The application shall track and display the vehicle's location on a map.
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-5
+        *   **Verification:** Verify that the vehicle's location displayed on the map matches the actual location. A tolerance of +/- 10 meters is acceptable. The map will be verified by comparing the location on the map with the true physical location using a calibrated GPS device. Location accuracy will be measured over a series of test drives in different environments (urban, rural, highway).
+    *   **VM-1.3:** The application shall record the vehicle's route history and allow the user to view past routes.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-5
+        *   **Verification:** Verify that the route history displayed in the app matches the vehicle's actual route history, as recorded by the vehicle's onboard system. Compare data logs using a diagnostic tool. The accuracy of the route history will be assessed by comparing the distance and duration of the displayed routes with the actual driving data.
+    *   **VM-1.4:** The application shall display energy consumption patterns and efficiency metrics (e.g., miles per kWh).
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-5
+        *   **Verification:** Verify that the energy consumption and efficiency metrics are calculated correctly based on the vehicle's data. Values displayed in the app will be compared with the values calculated manually based on the same driving period/conditions. The calculations must match within +/- 5%. Standardized driving cycles (e.g., WLTP, EPA) will be used to ensure consistent and repeatable testing.
+*   **Charging Management:**
+    *   **CM-1.0:** The application shall locate nearby charging stations and display their availability status. *Charging stations shown must be within 50 miles of current location, sorted by distance.*
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-6
+        *   **Verification:** Verify that the application displays a list of nearby charging stations and their real-time availability by cross-referencing data with the charging provider's official web page. Data will be cross-validated using at least two independent charging station data providers.
+    *   **CM-1.1:** The application shall allow the user to schedule charging sessions and set charging limits (e.g., maximum SOC).
+        *   **Priority:** Medium
+        *   **Stability:** Stable (User configuration option).
+        *   **URD Ref:** URD-6
+        *   **Verification:** Verify that the charging schedule and limits are correctly set in the application and transmitted to the vehicle by observing the vehicle charging behavior at the scheduled time, confirming the vehicle has stopped charging at the correct time/ SOC level. A logging mechanism in the app will be used to verify that the charging schedule and limits are successfully transmitted to the vehicle.
+    *   **CM-1.2:** The application shall send a notification to the user when charging is complete.
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-6
+        *   **Verification:** Verify that the application sends a push notification to the user when the vehicle's charging is complete by observing the vehicle reaching the SOC set in CM-1.1 and observing that a notification is received. The delivery of the notification will be verified using a push notification testing service (e.g., Pushwoosh, Firebase).
+    *   **CM-1.3:** The application shall track charging costs and history.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-6
+        *   **Verification:** Verify that the charging costs and history are accurately recorded and displayed in the application. Compare the charging costs with receipts from the charging stations to ensure accuracy. Cost data will be compared with data pulled directly from the user's charging provider accounts.
+*   **Vehicle Control:**
+    *   **VC-1.0:** The application shall allow the user to remotely start/stop charging. *Requires user confirmation.*
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-7
+        *   **Verification:** Verify that the application can remotely start and stop charging the vehicle. A log entry will be generated at the vehicle for confirmation purposes. The user confirmation will be implemented as a modal dialog requiring explicit user action (e.g., tapping a confirmation button).
+        *   **User Confirmation Details:** The user confirmation will be a modal dialog, requiring the user to actively press a button indicating they want to start/stop the charging. The button will be colored red, and the dialog will contain the text 'Are you sure you want to [START/STOP] charging?', with start or stop changing based on the function.
+    *   **VC-1.1:** The application shall allow the user to pre-condition the cabin temperature before driving.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Comfort feature).
+        *   **URD Ref:** URD-7
+        *   **Verification:** Verify that the application can remotely set the cabin temperature by measuring the cabin temperature using a calibrated thermometer. Temperature readings will be taken at multiple locations within the cabin to ensure even temperature distribution.
+    *   **VC-1.2:** The application shall allow the user to remotely lock/unlock the vehicle.
+        *   **Priority:** High
+        *   **Stability:** Stable (Core functionality).
+        *   **URD Ref:** URD-7
+        *   **Verification:** Verify that the application can remotely lock and unlock the vehicle by confirming that the doors cannot be opened when the vehicle is in lock state and that the doors can be opened when the vehicle is in unlock state. The status of the door locking mechanisms will be verified using a diagnostic tool.
+    *   **VC-1.3:** The application shall allow the user to activate the vehicle's horn and lights for location purposes.
+        *   **Priority:** Low
+        *   **Stability:** Stable (Convenience feature).
+        *   **URD Ref:** URD-7
+        *   **Verification:** Verify that the application can remotely activate the vehicle's horn and lights. Ensure the correct horn and lights are activated. A sound level meter will be used to measure the horn's volume.
+*   **Trip Planning:**
+    *   **TP-1.0:** The application shall allow the user to plan routes, including charging stops.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-8
+        *   **Verification:** Verify that the application can plan routes that include charging stops based on the vehicle's range and charging station availability using real-time data. Compare the app's route and charging stop recommendations against the route and charging recommendations provided by Google Maps and A Better Route Planner. The following comparison criteria will be used: (a) Total trip distance (tolerance: +/- 5%), (b) Total trip time (tolerance: +/- 10%), (c) Number of charging stops, (d) Total charging time, and (e) SOC at the end of the trip (target > 10%).
+    *   **TP-1.1:** The application shall calculate trip energy requirements.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-8
+        *   **Verification:** Verify that the application can accurately calculate trip energy requirements based on distance, elevation, and weather conditions. Compare calculations from TP-1.1 to data reported after driving to verify that energy requirements are accurate. Accuracy of the trip energy calculation will be verified against real-world driving data, comparing the predicted energy consumption to the vehicle's actual consumption for multiple routes and weather conditions.
+        *   **Trip Energy Calculation Details:**  The trip energy requirements will be calculated using the following formula: *Energy (kWh) = (Distance (km) * Base Consumption (kWh/km) * (1 + Elevation Factor + Weather Factor)).* The *Base Consumption* is a vehicle-specific parameter representing the average energy consumption under ideal conditions. The *Elevation Factor* is a percentage increase in energy consumption per meter of elevation gain.  The *Weather Factor* adjusts energy requirements based on temperature and wind.  Temperature: For every degree Celsius below 20°C, energy consumption increases by 0.5%. For every degree Celsius above 20°C, energy consumption increases by 0.25% to account for A/C use. Wind: For every 1 km/h of headwind, energy consumption increases by 0.1%.
+    *   **TP-1.2:** The application shall allow the user to save favorite locations and routes.
+        *   **Priority:** Low
+        *   **Stability:** Stable (Convenience feature).
+        *   **URD Ref:** URD-8
+        *   **Verification:** Verify that the application can save and retrieve favorite locations and routes. Tests will confirm the locations are saved and retrieved correctly.
+    *   **TP-1.3:** The application shall adjust the estimated range based on weather conditions (e.g., temperature, wind).
+        *   **Priority:** Low
+        *   **Stability:** Stable (Convenience feature).
+        *   **URD Ref:** URD-8
+        *   **Verification:** Verify the calculated range takes weather into account. Compare the estimated range with actual range achieved in similar weather conditions by reviewing the driving history and using the following equation: *Adjusted Range = Base Range * (1 - Temperature Impact Factor - Wind Impact Factor)* where Temperature Impact Factor is a percentage reduction per degree Celsius below 20°C, and Wind Impact Factor is a percentage reduction per km/h of headwind. For example, if the temperature is 10°C (10 degrees below 20°C), the Temperature Impact Factor may be 0.01 per degree (10% reduction). If there is a 10 km/h headwind, and the Wind Impact Factor is 0.005 (0.5% reduction per km/h), the wind factor would be 5%.
+*   **Maintenance & Diagnostics:**
+    *   **MD-1.0:** The application shall send maintenance reminders and alerts to the user.
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-9
+        *   **Verification:** Verify that the application sends maintenance reminders and alerts based on mileage or time intervals by confirming reminders based on expected maintenance intervals and mileage values. The accuracy of maintenance reminders will be tested by verifying that the app generates reminders within 50 miles or 7 days of scheduled maintenance.
+    *   **MD-1.1:** The application shall allow the user to access vehicle diagnostic information (e.g., error codes).
+        *   **Priority:** Medium
+        *   **Stability:** Stable (Secondary Functionality).
+        *   **URD Ref:** URD-9
+        *   **Verification:** Ensure app can display error codes sent from the vehicle using a diagnostic tool and confirming the error code matches the error message sent by the application. The error codes will be verified against the manufacturer's official documentation.
+    *   **MD-1.2:** The application shall allow the user to schedule service appointments.
+        *   **Priority:** Low
+        *   **Stability:** Stable (Convenience feature).
+        *   **URD Ref:** URD-9
+        *   **Verification:** Verify that the application can integrate with a service scheduling system. The app will initiate a service appointment request and then communicate with the manufacturer to confirm that the service appointment was created. The verification process will include the following steps:
+            1.  User initiates a service appointment request within the app, providing the vehicle's VIN, preferred date and time, and the type of service needed.
+            2.  The app transmits this information to the manufacturer's service scheduling system via a secure API call, using HTTPS protocol with TLS 1.3 encryption.
+            3.  Upon successful submission of the service appointment request, the service scheduling system generates a unique confirmation number or service reference code.
+            4.  The app will display a confirmation message to the user, including the service reference code and the scheduled appointment date and time.
+            5.  The app will store all the information about the scheduling request in the phone until is acknowledged by the manufacturer.
+        *   **Integration Testing Standards:** The verification will be accomplished by running API unit tests.
+        *   **Site/Maintenance Acceptance:** *This acceptance will be done by the verification that the scheduling process works through the API unit test.*
+    *   **MD-1.3:** The application shall track maintenance history and costs.
+        *   **Priority:** Low
+        *   **Stability:** Stable (Convenience feature).
+        *   **URD Ref:** URD-9
+        *   **Verification:** Verify that the application can store and display maintenance history and costs by adding maintenance records to the app and confirming that the values displayed are accurate. The test coverage will include adding records with different dates, service types, and costs to ensure data accuracy.
+*   **EH-1.0:** *The application will provide user-friendly error messages in English.*
+     *   **Priority:** High
+     *   **Stability:** Stable
+     *   **URD Ref:** URD-10
+     *   **Verification:** Simulate scenarios and verify appropriate messages are displayed to the user. The error messaging will conform to the UI/UX standards and follow a standardized structure.
+*   **EH-1.1:** *The application will retry API calls up to 3 times before displaying the error message and logging the failure. The back off multiplier will be exponential for each failure.*
+     *   **Priority:** High
+     *   **Stability:** Stable
+     *   **URD Ref:** URD-10
+     *   **Verification:** Conducted during API integration and error handling during unit test. The API errors will be simulated using a mocking framework.
+* **AU-1.0:** *The application shall provide the following permission levels: administrator, driver and guest.*
+    *   **Priority:** High
+    *   **Stability:** Stable
+    *   **URD Ref:** URD-11
+    *   **Verification:** Confirm that all permission levels are defined.
+* **AU-1.1:** *Administrator level shall have the ability to execute every function.*
+    *   **Priority:** High
+    *   **Stability:** Stable
+    *   **URD Ref:** URD-11
+    *   **Verification:** User with administrator level shall have the ability to use all the functionalities.
+* **AU-1.2:** *Driver level shall have the ability to execute vehicle monitoring, charging management and trip planning.*
+    *   **Priority:** High
+    *   **Stability:** Stable
+    *   **URD Ref:** URD-11
+    *   **Verification:** Users with driver level can execute these functionalities but can not remotely start/stop charging or can not schedule service appointments.
+* **AU-1.3:** *Guest level shall have the ability to execute vehicle monitoring.*
+    *   **Priority:** High
+    *   **Stability:** Stable
+    *   **URD Ref:** URD-11
+    *   **Verification:** Users with guest level can execute these functionalities but can not remotely start/stop charging or can not schedule service appointments and can not trip plan.
+
+**3.3 Performance Requirements**
+
+*   **PR-1.0:** The application shall have a response time of less than 3 seconds for most operations (e.g., displaying vehicle status, locking/unlocking, starting/stopping charging).
+    *   **Verification:** Measure the response time for each operation using performance testing tools (e.g., JMeter, LoadView). *The response time will be measured from the time the user initiates the action to the time the application displays the result.* Performance testing will be conducted under various network conditions (e.g., 3G, 4G, Wi-Fi).
+*   **PR-1.1:** The application shall consume a minimal amount of battery power. *Battery consumption should not exceed 1

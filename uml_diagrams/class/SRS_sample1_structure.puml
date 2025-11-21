@@ -1,0 +1,26 @@
+@startuml
+class Vehicle {
+    SoC: Percentage
+    BatteryLevelVisual: Image
+    EstimatedRange: Numeric
+    LockStatus: Enum {Locked, Unlocked}
+    InteriorCabinTemperature: Numeric
+    ClimateControlActive: Boolean
+    VehicleImage: Image
+    RecentEnergyConsumption: Numeric
+    AmbientTemperature: Numeric
+}
+
+class User {
+    PreferredUnit: Enum {Miles, Kilometers}
+}
+
+enum Unit {
+    Miles
+    Kilometers
+}
+
+Vehicle "1" o-- "1" User : belongs to
+User "1" *-- "1" Vehicle : owns
+
+@enduml

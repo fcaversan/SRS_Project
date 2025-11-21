@@ -1,0 +1,44 @@
+@startuml RemoteStartSequence
+' DESIGN DECISION: Using strict UML sequence syntax
+' GROUND TRUTH: Based on SRS Section 5.3.2 (Functional Requirements)
+
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Cloud Gateway" as Cloud
+participant "Vehicle Telematics" as Car
+
+User -> App: Tap "Remote Start"
+activate App
+
+App -> App: Validate Session Token
+alt Token Invalid
+    App --> User: Display "Login Required"
+else Token Valid
+    App -> Cloud: POST /api/v1/vehicle/command/start
+    activate Cloud
+    
+    Cloud -> Cloud: Verify User Ownership
+    Cloud -> Car: Send Wake-Up Signal (MQTT)
+    activate Car
+    
+    Car -> Car: Check Safety Interlocks\n(Gear=Park, Doors=Closed)
+    
+    alt Safety Checks Pass
+        Car -> Car: Ignite Engine
+        Car --> Cloud: 200 OK (Engine Started)
+        Cloud --> App: 200 OK (Success)
+        App --> User: Show "Engine Running"
+    else Safety Checks Fail
+        Car --> Cloud: 409 Conflict (Safety Hazard)
+        deactivate Car
+        Cloud --> App: 409 Conflict
+        deactivate Cloud
+        App --> User: Show Error "Safety Check Failed"
+    end
+end
+deactivate App
+
+@enduml

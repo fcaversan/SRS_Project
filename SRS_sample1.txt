@@ -1,0 +1,9 @@
+3.2.1 FR-HSS: Home Screen & Vehicle Status
+FR-HSS-001: The system shall display the vehicle's current State of Charge (SoC) as a percentage value on the application's home screen.
+FR-HSS-002: The system shall display a visual representation of the vehicle's battery level.
+FR-HSS-003: The system shall display an estimated vehicle range in the user's preferred unit (miles or kilometers).
+FR-HSS-004: The estimated vehicle range calculation shall be based on the vehicle's current SoC, recent energy consumption trends, and the current ambient temperature reported by the vehicle.
+FR-HSS-005: The system shall display the vehicle's current lock status (Locked/Unlocked).
+FR-HSS-006: The system shall display the vehicle's interior cabin temperature as reported by the vehicle.
+FR-HSS-007: The system shall indicate whether the climate control system is currently active.
+FR-HSS-008: The system shall display a clear, graphical representation of the user's vehicle on the home screen.

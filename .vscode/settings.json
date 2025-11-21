@@ -1,0 +1,7 @@
+{
+    "plantuml.java": "java",
+    "plantuml.jar": "C:\\Projects\\SRS_Project\\plantuml\\plantuml.jar",
+    "plantuml.previewAutoUpdate": true,
+    "plantuml.render": "PlantUMLServer",
+    "plantuml.server": "https://www.plantuml.com/plantuml"
+}

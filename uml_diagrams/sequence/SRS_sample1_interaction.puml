@@ -1,0 +1,44 @@
+@startuml
+autonumber
+actor User
+participant App
+participant API
+database DB
+
+User -> App: Opens Home Screen
+App -> App: Request Vehicle Status
+App -> API: Request Vehicle Data (SoC, Consumption, Temperature)
+API -> DB: Retrieve Vehicle Data
+activate DB
+DB --> API: Vehicle Data (SoC, Consumption, Temperature)
+deactivate DB
+activate API
+API -> API: Calculate Estimated Range
+API --> App: Vehicle Status (Range, SoC, Temperature)
+deactivate API
+App -> App: Display Vehicle Status
+App --> User: Display Vehicle Status on Home Screen
+
+alt No Data Available
+    App -> API: Request Vehicle Data (SoC, Consumption, Temperature)
+    API -> DB: Retrieve Vehicle Data
+    activate DB
+    DB --> API: Error: No Data Available
+    deactivate DB
+    API --> App: Error: No Data Available
+    deactivate API
+    App --> User: Display "Vehicle Data Unavailable" Error Message
+else Calculation Error
+    App -> API: Request Vehicle Data (SoC, Consumption, Temperature)
+    API -> DB: Retrieve Vehicle Data
+    activate DB
+    DB --> API: Vehicle Data (SoC, Consumption, Temperature)
+    deactivate DB
+    API -> API: Calculate Estimated Range
+    API -> API: Exception Occurred During Calculation
+    API --> App: Error: Calculation Error
+    deactivate API
+    App --> User: Display "Range Calculation Error" Message
+end
+
+@enduml
