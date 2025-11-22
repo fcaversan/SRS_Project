@@ -1,0 +1,27 @@
+@startuml
+!pragma useNewLayout true
+start
+:Add Item to Cart;
+if (Item added successfully?) then (yes)
+  :Update Cart Contents;
+  :Calculate Total Price (including taxes);
+  :Persist Cart Contents (session);
+else (no)
+  :Display Error Message (item not added);
+endif
+:Display Cart Contents and Total Price;
+if (User selects Checkout?) then (yes)
+  :Proceed to Checkout;
+else (no)
+  :Continue Shopping or Remove Items;
+  if (User selects Remove Item?) then (yes)
+    :Remove Item from Cart;
+    :Update Cart Contents;
+    :Calculate Total Price (including taxes);
+    :Persist Cart Contents (session);
+    :Display Cart Contents and Total Price;
+  else (no)
+  endif
+endif
+stop
+@enduml

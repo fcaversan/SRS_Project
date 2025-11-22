@@ -269,21 +269,30 @@ Generate PlantUML Sequence Diagram code:
         prompt = f"""
 Task: Create an Activity Diagram representing the logic flow of the text below.
 
-You are a senior software architect. Create a comprehensive Activity Diagram in PlantUML format.
+You are a senior software architect. Create a comprehensive Activity Diagram in PlantUML format using MODERN PlantUML syntax.
 
-Specific Constraints:
-1. Use the new PlantUML syntax:
-   - Start with start
-   - Stop with stop  
-   - Use :Action; for activities
-2. Use if (condition) then (yes) structures for all logic branches
-3. Ensure there is a "Merge Node" where the branches come back together
-4. Generate ONLY PlantUML code - no explanations
+CRITICAL SYNTAX REQUIREMENTS:
+1. Start with: start
+2. End with: stop
+3. Use :Action description; for activities
+4. Use if (condition?) then (yes/no) for decisions with proper endif
+5. Use -> for flow connections
+6. NO old syntax like (*) start or (*) stop
+7. Example structure:
+   start
+   :First Action;
+   if (condition?) then (yes)
+     :Action if true;
+   else (no)
+     :Action if false;
+   endif
+   :Final Action;
+   stop
 
-Input Text:
+Input Text (focus on business logic and decision flows):
 {workflow_text}
 
-Generate PlantUML Activity Diagram code:
+Generate ONLY valid modern PlantUML Activity Diagram code:
 """
         return prompt
     
@@ -317,6 +326,52 @@ Generate PlantUML Activity Diagram code:
         except Exception as e:
             raise Exception(f"Failed to save PlantUML file: {e}")
     
+    def validate_plantuml_syntax(self, puml_path: str) -> tuple[bool, str]:
+        """
+        Validate PlantUML syntax without generating image.
+        
+        Args:
+            puml_path (str): Path to the .puml file
+            
+        Returns:
+            tuple[bool, str]: (is_valid, error_message)
+        """
+        try:
+            # Read the file and do basic syntax validation
+            with open(puml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Basic syntax checks
+            if not content.strip():
+                return False, "Empty PlantUML file"
+            
+            if not content.strip().startswith('@startuml'):
+                return False, "Missing @startuml directive"
+            
+            if not content.strip().endswith('@enduml'):
+                return False, "Missing @enduml directive"
+            
+            # Try to generate image with timeout to catch syntax errors
+            result = subprocess.run(
+                ['java', '-jar', self.plantuml_jar_path, '-timeout', '10', puml_path],
+                capture_output=True,
+                text=True,
+                timeout=15,  # 15 second timeout
+                cwd=os.getcwd()
+            )
+            
+            if result.returncode != 0:
+                # Extract meaningful error from output
+                error_output = result.stderr or result.stdout or "Unknown syntax error"
+                return False, error_output
+            
+            return True, "Syntax valid"
+            
+        except subprocess.TimeoutExpired:
+            return False, "PlantUML syntax validation timed out"
+        except Exception as e:
+            return False, f"Syntax validation failed: {e}"
+    
     def generate_image_from_puml(self, puml_file_path: str) -> str:
         """
         Generate an image from a PlantUML file.
@@ -333,11 +388,12 @@ Generate PlantUML Activity Diagram code:
             
             print(f"Generating image from: {puml_file_path}")
             
-            # Run PlantUML to generate image
+            # Run PlantUML to generate image with timeout
             result = subprocess.run(
                 ["java", "-jar", self.plantuml_jar_path, puml_file_path],
                 capture_output=True,
                 text=True,
+                timeout=30,  # 30 second timeout
                 check=True
             )
             
@@ -697,6 +753,605 @@ Generate PlantUML Activity Diagram code:
             results['error'] = {'error': str(e)}
         
         return results
+    
+    def generate_diagrams_from_requirements_slice(self, requirements_slice: str, slice_name: str = "RequirementSlice", custom_validation_prompt: str = None) -> Dict[str, any]:
+        """
+        Generate the core 3 diagrams (Class, Sequence, Activity) from a requirements slice and validate consistency.
+        
+        Args:
+            requirements_slice (str): Slice of requirements to process
+            slice_name (str): Name identifier for this slice
+            custom_validation_prompt (str, optional): Custom prompt for validation phase
+            
+        Returns:
+            Dict containing diagram results and validation report
+        """
+        print(f"🚀 Starting iterative design generation for: {slice_name}")
+        
+        iteration_results = {
+            'slice_name': slice_name,
+            'diagrams': {},
+            'validation': None,
+            'timestamp': datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        }
+        
+        try:
+            # =================================================================
+            # PHASE 1: Generate the 3 Core Diagrams
+            # =================================================================
+            
+            print(f"\n📊 Generating Class Diagram for {slice_name}...")
+            try:
+                class_result = self.generate_structure_diagram(
+                    requirements_slice,
+                    f"{slice_name}_class_diagram"
+                )
+                iteration_results['diagrams']['class'] = class_result
+                print(f"✅ Class Diagram: {class_result['image']}")
+            except Exception as e:
+                print(f"❌ Class Diagram failed: {e}")
+                iteration_results['diagrams']['class'] = {'error': str(e)}
+                print(f"🛑 Stopping iteration due to Class Diagram failure")
+                return iteration_results
+            
+            print(f"\n🔄 Generating Sequence Diagram for {slice_name}...")
+            try:
+                sequence_result = self.generate_interaction_diagram(
+                    f"{slice_name} Main Flow",
+                    requirements_slice,
+                    f"{slice_name}_sequence_diagram"
+                )
+                iteration_results['diagrams']['sequence'] = sequence_result
+                print(f"✅ Sequence Diagram: {sequence_result['image']}")
+            except Exception as e:
+                print(f"❌ Sequence Diagram failed: {e}")
+                iteration_results['diagrams']['sequence'] = {'error': str(e)}
+                print(f"🛑 Stopping iteration due to Sequence Diagram failure")
+                return iteration_results
+            
+            print(f"\n⚡ Generating Activity Diagram for {slice_name}...")
+            try:
+                activity_result = self.generate_logic_diagram(
+                    requirements_slice,
+                    f"{slice_name} Business Logic",
+                    f"{slice_name}_activity_diagram"
+                )
+                iteration_results['diagrams']['activity'] = activity_result
+                print(f"✅ Activity Diagram: {activity_result['image']}")
+            except Exception as e:
+                print(f"❌ Activity Diagram failed: {e}")
+                iteration_results['diagrams']['activity'] = {'error': str(e)}
+                print(f"🛑 Stopping iteration due to Activity Diagram failure")
+                return iteration_results
+            
+            # =================================================================
+            # PHASE 2: Validation - Check Consistency Between Diagrams
+            # =================================================================
+            
+            # Only validate if all diagrams generated successfully
+            successful_diagrams = [d for d in iteration_results['diagrams'].values() if 'error' not in d]
+            if len(successful_diagrams) == 3:
+                print(f"\n🔍 Validating diagram consistency for {slice_name}...")
+                try:
+                    validation_result = self.validate_diagram_consistency(
+                        requirements_slice,
+                        iteration_results['diagrams'],
+                        slice_name,
+                        custom_validation_prompt
+                    )
+                    iteration_results['validation'] = validation_result
+                    print(f"✅ Validation completed: {validation_result['summary']}")
+                except Exception as e:
+                    print(f"❌ Validation failed: {e}")
+                    iteration_results['validation'] = {'error': str(e)}
+            else:
+                print(f"\n⚠️  Skipping validation - only {len(successful_diagrams)}/3 diagrams succeeded")
+                iteration_results['validation'] = {
+                    'skipped': True,
+                    'reason': f"Only {len(successful_diagrams)}/3 diagrams generated successfully"
+                }
+            
+            # =================================================================
+            # PHASE 3: Save Iteration Report
+            # =================================================================
+            
+            report_path = self.save_iteration_report(iteration_results)
+            iteration_results['report_path'] = report_path
+            
+            print(f"\n🎉 Iteration completed for {slice_name}!")
+            print(f"📄 Report saved: {report_path}")
+            
+        except Exception as e:
+            print(f"❌ Iteration failed for {slice_name}: {e}")
+            iteration_results['error'] = str(e)
+        
+        return iteration_results
+    
+    def validate_diagram_consistency(self, requirements_slice: str, diagrams: Dict[str, Dict], slice_name: str, custom_validation_prompt: str = None) -> Dict[str, any]:
+        """
+        Validate the consistency between the three generated diagrams and the requirements.
+        
+        Args:
+            requirements_slice (str): Original requirements
+            diagrams (Dict): Generated diagram information
+            slice_name (str): Name of the requirements slice
+            custom_validation_prompt (str, optional): Custom validation prompt
+            
+        Returns:
+            Dict containing validation results and consistency report
+        """
+        try:
+            # Read the generated PlantUML files
+            diagram_contents = {}
+            
+            for diagram_type, diagram_info in diagrams.items():
+                if 'puml' in diagram_info and 'error' not in diagram_info:
+                    try:
+                        with open(diagram_info['puml'], 'r', encoding='utf-8') as f:
+                            diagram_contents[diagram_type] = f.read()
+                    except Exception as e:
+                        diagram_contents[diagram_type] = f"Error reading file: {e}"
+                else:
+                    diagram_contents[diagram_type] = "Diagram generation failed"
+            
+            # Generate validation prompt
+            if custom_validation_prompt:
+                validation_prompt = custom_validation_prompt.format(
+                    requirements=requirements_slice,
+                    class_diagram=diagram_contents.get('class', 'Not generated'),
+                    sequence_diagram=diagram_contents.get('sequence', 'Not generated'),
+                    activity_diagram=diagram_contents.get('activity', 'Not generated'),
+                    slice_name=slice_name
+                )
+            else:
+                validation_prompt = self.generate_default_validation_prompt(
+                    requirements_slice, diagram_contents, slice_name
+                )
+            
+            # Get validation report from Gemini
+            validation_report = self.send_prompt(validation_prompt)
+            
+            # Extract consistency score if present
+            consistency_score = self.extract_consistency_score(validation_report)
+            
+            validation_result = {
+                'report': validation_report,
+                'consistency_score': consistency_score,
+                'diagrams_validated': list(diagram_contents.keys()),
+                'summary': f"Consistency analysis completed for {len(diagram_contents)} diagrams",
+                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            return validation_result
+            
+        except Exception as e:
+            raise Exception(f"Validation failed: {e}")
+    
+    def generate_default_validation_prompt(self, requirements: str, diagram_contents: Dict[str, str], slice_name: str) -> str:
+        """
+        Generate the default validation prompt for diagram consistency checking.
+        
+        Args:
+            requirements (str): Original requirements slice
+            diagram_contents (Dict): PlantUML content for each diagram type
+            slice_name (str): Name of the requirements slice
+            
+        Returns:
+            str: Validation prompt for Gemini
+        """
+        prompt = f"""
+You are a senior software architect and quality assurance expert. Your task is to validate the consistency and quality of UML diagrams generated from requirements.
+
+Analyze the following requirements and corresponding UML diagrams for consistency, completeness, and quality:
+
+**REQUIREMENTS SLICE: {slice_name}**
+{requirements}
+
+**GENERATED DIAGRAMS:**
+
+**Class Diagram (PlantUML):**
+{diagram_contents.get('class', 'Not generated')}
+
+**Sequence Diagram (PlantUML):**
+{diagram_contents.get('sequence', 'Not generated')}
+
+**Activity Diagram (PlantUML):**
+{diagram_contents.get('activity', 'Not generated')}
+
+**VALIDATION CRITERIA:**
+
+1. **Consistency Analysis:**
+   - Do the class names in the Class Diagram match those used in the Sequence Diagram?
+   - Are the operations/methods defined in classes actually used in the sequence flows?
+   - Do the activities in the Activity Diagram correspond to the interactions in the Sequence Diagram?
+   - Are the data flows consistent across all three diagrams?
+
+2. **Completeness Analysis:**
+   - Are all entities mentioned in the requirements represented in the Class Diagram?
+   - Are all user interactions from requirements covered in the Sequence Diagram?
+   - Are all business logic flows from requirements represented in the Activity Diagram?
+   - Are there missing relationships or dependencies?
+
+3. **Quality Analysis:**
+   - Are the diagrams following UML best practices?
+   - Are the naming conventions consistent and meaningful?
+   - Is the level of detail appropriate for the requirements?
+   - Are there any logical inconsistencies or errors?
+
+4. **Gap Analysis:**
+   - What requirements are not adequately represented in the diagrams?
+   - What diagram elements don't have corresponding requirements?
+   - Are there any contradictions between diagrams?
+
+**OUTPUT FORMAT:**
+Please provide your analysis in the following format:
+
+## Consistency Report for {slice_name}
+
+### Executive Summary
+[Brief overview of overall consistency and quality]
+
+### Consistency Analysis
+- **Class-Sequence Alignment:** [Analysis]
+- **Sequence-Activity Alignment:** [Analysis] 
+- **Class-Activity Alignment:** [Analysis]
+- **Data Flow Consistency:** [Analysis]
+
+### Completeness Analysis
+- **Requirements Coverage:** [Percentage and details]
+- **Missing Elements:** [List any missing elements]
+- **Excess Elements:** [List any unnecessary elements]
+
+### Quality Assessment
+- **UML Best Practices:** [Compliance level]
+- **Naming Conventions:** [Assessment]
+- **Diagram Clarity:** [Assessment]
+
+### Issues Identified
+1. [Issue 1 with severity level]
+2. [Issue 2 with severity level]
+...
+
+### Recommendations
+1. [Recommendation 1]
+2. [Recommendation 2]
+...
+
+### Consistency Score
+**Overall Score:** [X/10] - [Brief justification]
+
+<consistency_score>[X]</consistency_score>
+
+Generate the validation report now:
+"""
+        return prompt
+    
+    def extract_consistency_score(self, validation_report: str) -> int:
+        """
+        Extract the consistency score from the validation report.
+        
+        Args:
+            validation_report (str): The validation report text
+            
+        Returns:
+            int: Consistency score (0-10), or -1 if not found
+        """
+        try:
+            import re
+            
+            # Look for <consistency_score>X</consistency_score> pattern
+            score_match = re.search(r'<consistency_score>(\d+)</consistency_score>', validation_report)
+            if score_match:
+                return int(score_match.group(1))
+            
+            # Fallback: look for "Score: X/10" pattern
+            score_match = re.search(r'Score:\s*(\d+)/10', validation_report)
+            if score_match:
+                return int(score_match.group(1))
+            
+            # Fallback: look for "X/10" pattern
+            score_match = re.search(r'(\d+)/10', validation_report)
+            if score_match:
+                return int(score_match.group(1))
+            
+            return -1  # Score not found
+            
+        except Exception:
+            return -1
+    
+    def save_iteration_report(self, iteration_results: Dict) -> str:
+        """
+        Save the iteration results to a report file.
+        
+        Args:
+            iteration_results (Dict): Complete iteration results
+            
+        Returns:
+            str: Path to the saved report file
+        """
+        try:
+            # Create reports directory if it doesn't exist
+            reports_dir = os.path.join(self.diagrams_dir, "reports")
+            if not os.path.exists(reports_dir):
+                os.makedirs(reports_dir)
+            
+            # Generate report filename
+            timestamp = iteration_results.get('timestamp', datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            slice_name = iteration_results.get('slice_name', 'UnknownSlice')
+            report_filename = f"iteration_report_{slice_name}_{timestamp}.md"
+            report_path = os.path.join(reports_dir, report_filename)
+            
+            # Generate report content
+            report_content = self.generate_iteration_report_content(iteration_results)
+            
+            # Save report
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+            
+            return report_path
+            
+        except Exception as e:
+            raise Exception(f"Failed to save iteration report: {e}")
+    
+    def generate_iteration_report_content(self, iteration_results: Dict) -> str:
+        """
+        Generate the content for the iteration report.
+        
+        Args:
+            iteration_results (Dict): Complete iteration results
+            
+        Returns:
+            str: Formatted report content in Markdown
+        """
+        slice_name = iteration_results.get('slice_name', 'Unknown')
+        timestamp = iteration_results.get('timestamp', 'Unknown')
+        diagrams = iteration_results.get('diagrams', {})
+        validation = iteration_results.get('validation', {})
+        
+        report = f"""# Design Iteration Report: {slice_name}
+
+**Generated:** {timestamp}
+**Phase:** 2 - Software Design
+**Slice:** {slice_name}
+
+## 📊 Diagram Generation Results
+
+### Class Diagram
+"""
+        
+        if 'class' in diagrams and 'error' not in diagrams['class']:
+            report += f"""
+- ✅ **Status:** Generated successfully
+- 📄 **PlantUML:** `{diagrams['class']['puml']}`
+- 🖼️ **Image:** `{diagrams['class']['image']}`
+"""
+        else:
+            error = diagrams.get('class', {}).get('error', 'Unknown error')
+            report += f"""
+- ❌ **Status:** Generation failed
+- **Error:** {error}
+"""
+        
+        report += "\n### Sequence Diagram\n"
+        
+        if 'sequence' in diagrams and 'error' not in diagrams['sequence']:
+            report += f"""
+- ✅ **Status:** Generated successfully
+- 📄 **PlantUML:** `{diagrams['sequence']['puml']}`
+- 🖼️ **Image:** `{diagrams['sequence']['image']}`
+"""
+        else:
+            error = diagrams.get('sequence', {}).get('error', 'Unknown error')
+            report += f"""
+- ❌ **Status:** Generation failed
+- **Error:** {error}
+"""
+        
+        report += "\n### Activity Diagram\n"
+        
+        if 'activity' in diagrams and 'error' not in diagrams['activity']:
+            report += f"""
+- ✅ **Status:** Generated successfully
+- 📄 **PlantUML:** `{diagrams['activity']['puml']}`
+- 🖼️ **Image:** `{diagrams['activity']['image']}`
+"""
+        else:
+            error = diagrams.get('activity', {}).get('error', 'Unknown error')
+            report += f"""
+- ❌ **Status:** Generation failed
+- **Error:** {error}
+"""
+        
+        report += "\n## 🔍 Validation Results\n"
+        
+        if validation and 'error' not in validation:
+            consistency_score = validation.get('consistency_score', -1)
+            if consistency_score >= 0:
+                report += f"\n**Consistency Score:** {consistency_score}/10\n"
+            
+            report += f"""
+**Diagrams Validated:** {', '.join(validation.get('diagrams_validated', []))}
+
+### Detailed Validation Report
+
+{validation.get('report', 'No validation report available')}
+"""
+        else:
+            error = validation.get('error', 'Validation not performed') if validation else 'Validation not performed'
+            report += f"""
+- ❌ **Status:** Validation failed
+- **Error:** {error}
+"""
+        
+        report += f"""
+
+## 📈 Summary
+
+- **Diagrams Generated:** {len([d for d in diagrams.values() if 'error' not in d])}/3
+- **Validation Status:** {'✅ Completed' if validation and 'error' not in validation else '❌ Failed/Skipped'}
+- **Overall Quality:** {'✅ Good' if validation and validation.get('consistency_score', 0) >= 7 else '⚠️ Needs Review' if validation and validation.get('consistency_score', 0) >= 4 else '❌ Poor'}
+
+Generated by Phase 2 Design Agent on {timestamp}
+"""
+        
+        return report
+    
+    def run_iterative_design_workflow(self, requirement_slices: List[Dict[str, str]], custom_validation_prompt: str = None) -> Dict[str, any]:
+        """
+        Run the complete iterative design workflow for multiple requirement slices.
+        
+        Args:
+            requirement_slices (List[Dict]): List of requirement slices with 'name' and 'content' keys
+            custom_validation_prompt (str, optional): Custom validation prompt template
+            
+        Returns:
+            Dict: Complete workflow results for all slices
+        """
+        print("🚀 Starting Iterative Design Workflow (Phase 2)")
+        print(f"📋 Processing {len(requirement_slices)} requirement slices\n")
+        
+        workflow_results = {
+            'workflow_start': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'total_slices': len(requirement_slices),
+            'slice_results': {},
+            'summary': {}
+        }
+        
+        successful_iterations = 0
+        total_diagrams_generated = 0
+        validation_scores = []
+        
+        for i, slice_info in enumerate(requirement_slices, 1):
+            slice_name = slice_info.get('name', f'Slice_{i}')
+            slice_content = slice_info.get('content', '')
+            
+            print(f"🔄 Processing Slice {i}/{len(requirement_slices)}: {slice_name}")
+            print("="*60)
+            
+            try:
+                # Run iteration for this slice
+                iteration_result = self.generate_diagrams_from_requirements_slice(
+                    slice_content,
+                    slice_name,
+                    custom_validation_prompt
+                )
+                
+                workflow_results['slice_results'][slice_name] = iteration_result
+                
+                # Update summary statistics
+                successful_iterations += 1
+                diagrams = iteration_result.get('diagrams', {})
+                total_diagrams_generated += len([d for d in diagrams.values() if 'error' not in d])
+                
+                validation = iteration_result.get('validation', {})
+                if validation and 'consistency_score' in validation and validation['consistency_score'] >= 0:
+                    validation_scores.append(validation['consistency_score'])
+                
+                print(f"✅ Slice {slice_name} completed successfully!\n")
+                
+            except Exception as e:
+                print(f"❌ Slice {slice_name} failed: {e}\n")
+                workflow_results['slice_results'][slice_name] = {'error': str(e)}
+        
+        # Generate workflow summary
+        workflow_results['summary'] = {
+            'successful_slices': successful_iterations,
+            'failed_slices': len(requirement_slices) - successful_iterations,
+            'total_diagrams_generated': total_diagrams_generated,
+            'average_consistency_score': sum(validation_scores) / len(validation_scores) if validation_scores else -1,
+            'validation_scores': validation_scores,
+            'workflow_end': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Save workflow summary report
+        summary_report_path = self.save_workflow_summary_report(workflow_results)
+        workflow_results['summary_report_path'] = summary_report_path
+        
+        print("🎉 Iterative Design Workflow Completed!")
+        print(f"📊 Results: {successful_iterations}/{len(requirement_slices)} slices successful")
+        print(f"📄 Summary report: {summary_report_path}")
+        
+        return workflow_results
+    
+    def save_workflow_summary_report(self, workflow_results: Dict) -> str:
+        """
+        Save a summary report for the complete workflow.
+        
+        Args:
+            workflow_results (Dict): Complete workflow results
+            
+        Returns:
+            str: Path to the summary report
+        """
+        try:
+            reports_dir = os.path.join(self.diagrams_dir, "reports")
+            if not os.path.exists(reports_dir):
+                os.makedirs(reports_dir)
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            summary_filename = f"workflow_summary_{timestamp}.md"
+            summary_path = os.path.join(reports_dir, summary_filename)
+            
+            summary = workflow_results.get('summary', {})
+            
+            content = f"""# Phase 2 Design Workflow Summary
+
+**Workflow Started:** {workflow_results.get('workflow_start', 'Unknown')}
+**Workflow Completed:** {summary.get('workflow_end', 'Unknown')}
+**Total Slices Processed:** {workflow_results.get('total_slices', 0)}
+
+## 📊 Overall Results
+
+- **Successful Slices:** {summary.get('successful_slices', 0)}/{workflow_results.get('total_slices', 0)}
+- **Failed Slices:** {summary.get('failed_slices', 0)}
+- **Total Diagrams Generated:** {summary.get('total_diagrams_generated', 0)}
+- **Average Consistency Score:** {summary.get('average_consistency_score', -1):.1f}/10
+
+## 📈 Consistency Scores by Slice
+
+"""
+            
+            validation_scores = summary.get('validation_scores', [])
+            if validation_scores:
+                content += "| Slice | Consistency Score |\n"
+                content += "|-------|------------------|\n"
+                
+                slice_names = list(workflow_results.get('slice_results', {}).keys())
+                for i, score in enumerate(validation_scores):
+                    slice_name = slice_names[i] if i < len(slice_names) else f"Slice_{i+1}"
+                    content += f"| {slice_name} | {score}/10 |\n"
+            else:
+                content += "No validation scores available.\n"
+            
+            content += "\n## 📋 Detailed Results by Slice\n\n"
+            
+            for slice_name, result in workflow_results.get('slice_results', {}).items():
+                content += f"### {slice_name}\n\n"
+                
+                if 'error' in result:
+                    content += f"- ❌ **Status:** Failed\n- **Error:** {result['error']}\n\n"
+                else:
+                    diagrams = result.get('diagrams', {})
+                    successful_diagrams = len([d for d in diagrams.values() if 'error' not in d])
+                    validation = result.get('validation', {})
+                    
+                    content += f"- **Diagrams Generated:** {successful_diagrams}/3\n"
+                    content += f"- **Report:** [{result.get('report_path', 'N/A')}]\n"
+                    
+                    if validation and 'consistency_score' in validation:
+                        content += f"- **Consistency Score:** {validation['consistency_score']}/10\n"
+                    
+                    content += "\n"
+            
+            content += f"\n---\n*Generated by Phase 2 Design Agent on {summary.get('workflow_end', 'Unknown')}*\n"
+            
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return summary_path
+            
+        except Exception as e:
+            raise Exception(f"Failed to save workflow summary report: {e}")
 
 
 def main():
@@ -720,6 +1375,47 @@ def main():
         # srs_content = uml_automation.read_srs_file("SRS_v5.txt")
         # result = uml_automation.generate_diagram("usecase", srs_content)
         # print(f"Generated: {result}")
+        
+        # =====================================================================
+        # Example: Iterative Design Workflow with Hardcoded Requirement Slices
+        # =====================================================================
+        print("\n" + "="*60)
+        print("📋 ITERATIVE DESIGN WORKFLOW EXAMPLE")
+        print("="*60)
+        print("To run the iterative workflow, uncomment the example below:")
+        print()
+        print("# Sample requirement slices for testing")
+        print("# requirement_slices = [")
+        print('#     {"name": "UserAuth", "content": "User authentication requirements..."},')
+        print('#     {"name": "VehicleMonitoring", "content": "Vehicle monitoring requirements..."},')
+        print('#     {"name": "ChargingManagement", "content": "Charging management requirements..."}')
+        print("# ]")
+        print()
+        print("# Custom validation prompt (optional)")
+        print("# custom_prompt = '''")
+        print("# Validate the consistency of these diagrams for {slice_name}:")
+        print("# Requirements: {requirements}")
+        print("# Class Diagram: {class_diagram}")
+        print("# Sequence Diagram: {sequence_diagram}")
+        print("# Activity Diagram: {activity_diagram}")
+        print("# Provide detailed analysis and score 1-10.")
+        print("# '''")
+        print()
+        print("# Run the iterative workflow")
+        print("# results = uml_automation.run_iterative_design_workflow(")
+        print("#     requirement_slices, custom_prompt")
+        print("# )")
+        print("# print(f'Workflow Results: {results}')")
+        print()
+        print("This workflow will:")
+        print("  1. 🎯 Process each requirement slice")
+        print("  2. 📊 Generate Class, Sequence, and Activity diagrams")
+        print("  3. 🔍 Validate diagram consistency with Gemini")
+        print("  4. 📄 Generate detailed reports for each iteration")
+        print("  5. 📈 Create a comprehensive summary report")
+        
+        print(f"\n✨ Phase 2 Design Agent initialized successfully!")
+        print("Ready for iterative UML diagram generation and validation! 🚀")
         
     except Exception as e:
         print(f"Error: {e}")
