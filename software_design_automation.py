@@ -1,4 +1,4 @@
-from uml_automation import UMLDiagramAutomation
+from p2_design_agent import UMLDiagramAutomation
 import os
 
 def generate_diagrams_from_any_srs(srs_filename):

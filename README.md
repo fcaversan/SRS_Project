@@ -1,12 +1,22 @@
-# SRS Automation Workflow
+# SRS Automation Project
 
-This project automates the Software Requirements Specification (SRS) development process using Google Gemini 2.5 Pro. The workflow includes URD generation, SRS creation, validation, and iterative improvement.
+Comprehensive automation system for Software Requirements Specification (SRS) workflows using Google Gemini 2.5 Pro, spanning from requirements engineering through software design.
 
-## Project Structure
+## 🎯 **Project Overview**
 
-- **`urd_generator.py`** - Generates User Requirements Document (URD) from initial prompts
-- **`gemini_automation.py`** - Main SRS automation workflow (Generation → Validation → Review)
-- **`830-1998.pdf`** - IEEE 830-1998 standard for SRS documents
+This project provides end-to-end automation for software engineering workflows:
+
+- **Phase 1: Requirements Engineering** (`p1_requirements_agent.py`) - SRS generation, validation, and iterative improvement
+- **Phase 2: Software Design** (`p2_design_agent.py`) - UML diagram generation from SRS specifications
+
+## 📁 **Project Structure**
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed organization and file descriptions.
+
+### **Core Automation Agents:**
+- **`p1_requirements_agent.py`** - Main SRS automation workflow (Generation → Validation → Review)
+- **`p2_design_agent.py`** - UML diagram generation from any SRS format
+- **`urd_generator.py`** - User Requirements Document generator
 
 ## Setup Instructions
 
@@ -35,7 +45,7 @@ This creates `URD.txt` with user requirements based on an initial prompt.
 
 ### Step 2: Run SRS Automation Workflow
 ```bash
-python gemini_automation.py
+python p1_requirements_agent.py
 ```
 This automatically handles the complete SRS workflow:
 - **SRS Generation**: URD + IEEE Standard → `SRS_v1.txt`
@@ -71,7 +81,7 @@ To create additional SRS versions:
 
 ### Custom Workflows
 ```python
-from gemini_automation import GeminiAutomation
+from p1_requirements_agent import GeminiAutomation
 
 automator = GeminiAutomation()
 

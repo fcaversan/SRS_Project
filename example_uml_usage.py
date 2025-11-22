@@ -6,7 +6,7 @@ This script demonstrates how to use the UMLDiagramAutomation class
 to generate various UML diagrams from your SRS document.
 """
 
-from uml_automation import UMLDiagramAutomation
+from p2_design_agent import UMLDiagramAutomation
 
 def demonstrate_uml_automation():
     """Demonstrate the UML automation capabilities."""

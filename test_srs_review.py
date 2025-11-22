@@ -3,7 +3,7 @@
 Test script for SRS Review functionality
 """
 
-from gemini_automation import GeminiAutomation
+from p1_requirements_agent import GeminiAutomation
 import os
 import sys
 

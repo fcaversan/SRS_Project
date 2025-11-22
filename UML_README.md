@@ -41,7 +41,7 @@ echo "GOOGLE_API_KEY=your_api_key_here" >> .env
 
 ### 2. Basic Usage
 ```python
-from uml_automation import UMLDiagramAutomation
+from p2_design_agent import UMLDiagramAutomation
 
 # Initialize
 uml_gen = UMLDiagramAutomation()

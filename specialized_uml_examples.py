@@ -8,7 +8,7 @@ B. Interaction (Sequence Diagram) - from Functional Requirements
 C. Logic (Activity Diagram) - from Complex Workflows
 """
 
-from uml_automation import UMLDiagramAutomation
+from p2_design_agent import UMLDiagramAutomation
 
 def demonstrate_specialized_diagrams():
     """Demonstrate the specialized diagram generation patterns."""

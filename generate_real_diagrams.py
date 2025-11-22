@@ -5,7 +5,7 @@ Quick UML Generation from Real Specifications
 Paste your real specification text in the designated areas below and run this script.
 """
 
-from uml_automation import UMLDiagramAutomation
+from p2_design_agent import UMLDiagramAutomation
 
 def generate_from_real_specs():
     """Generate UML diagrams from your real specifications."""
