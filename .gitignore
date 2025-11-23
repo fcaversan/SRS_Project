@@ -14,7 +14,8 @@ env/
 ENV/
 
 # IDE files
-.vscode/
+# .vscode/
+
 *.swp
 *.swo
 
@@ -26,7 +27,7 @@ Thumbs.db
 plantuml/plantuml.jar
 
 # Large generated images (optional)
-*.png
+# *.png
 *.jpg
 *.jpeg
 *.gif
