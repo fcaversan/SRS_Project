@@ -1,0 +1,98 @@
+@startuml
+title Home Screen Data Loading Activity Diagram (Iteration 6)
+|Client App|
+start
+:User navigates to Home Screen;
+:Show loading indicator;
+:Fetch User Preferences (unit for range);
+:Request vehicle status from backend
+(GET /v2/vehicle/{id}/status);
+
+|#Technology|Backend API|
+:Receive vehicle status request;
+:Authenticate & Authorize User;
+if (Authentication failed?) then (yes)
+  :Return 401 Unauthorized;
+  -->|Client App|
+  :Hide loading indicator;
+  :Display "Authentication error";
+  stop
+endif
+
+:Check for fresh vehicle data in cache;
+if (Fresh data found in cache?) then (yes)
+  :Retrieve data from cache;
+else (no / stale)
+  :Attempt to connect to Vehicle Telematics Unit;
+  if (Vehicle is Online?) then (yes)
+    note right: Fetching live data in parallel from the vehicle
+    fork
+      :Fetch Battery Data
+      (SoC, recent consumption);
+    fork again
+      :Fetch Environment Data
+      (ambient temp);
+    fork again
+      :Fetch Vehicle State Data
+      (lock status, cabin temp, climate active);
+    fork again
+      :Fetch Vehicle Visual Asset ID;
+    end fork
+    :Consolidate live data;
+    :Update cache with fresh data;
+  else (no / Offline)
+    :Retrieve last known (stale) data from cache/DB;
+    note right: Vehicle is offline. Responding with the most recent data available.
+  endif
+endif
+
+:Calculate Estimated Range
+(based on SoC, consumption, temp & user's preferred unit);
+note left
+  Architectural Decision: Range calculation logic (FR-HSS-004)
+  is centralized on the backend for consistency.
+  The API pre-formats strings for range and temperature
+  based on the user's preference.
+end note
+
+:Assemble `VehicleStatusDTO`
+(including `isStale` flag);
+:Send 200 OK Response with DTO;
+
+|Client App|
+:Receive API Response;
+if (Response is 200 OK?) then (yes)
+  :Hide loading indicator;
+  :Parse `VehicleStatusDTO`;
+  if (DTO indicates data is stale?) then (yes)
+    :Display "Vehicle Offline" / "Last updated..." banner;
+  endif
+  :Update View Model with received data;
+  note right: UI components are updated in parallel based on the View Model
+  partition "Parallel UI Rendering" {
+    fork
+      partition "Battery & Range Info" {
+        :Display SoC percentage value (FR-HSS-001);
+        :Update visual battery representation (FR-HSS-002);
+        :Display pre-calculated estimated range (FR-HSS-003);
+      }
+    fork again
+      partition "Vehicle & Climate Status" {
+        :Display vehicle lock status (FR-HSS-005);
+        :Display interior cabin temperature (FR-HSS-006);
+        :Display climate control active status (FR-HSS-007);
+      }
+    fork again
+      partition "Vehicle Visuals" {
+        :Load and display vehicle image (FR-HSS-008);
+      }
+    end fork
+  }
+  :Render fully updated Home Screen;
+else (no / Other API error)
+  :Hide loading indicator;
+  :Display generic error message
+  (e.g., "Could not retrieve vehicle data");
+endif
+stop
+@enduml

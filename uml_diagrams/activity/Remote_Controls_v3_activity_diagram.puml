@@ -1,0 +1,149 @@
+@startuml
+!theme spacelab
+title Iteration 3: Improved Remote Control Activity Diagram
+
+partition "User (Mobile App)" {
+    start
+    :User selects remote command;
+}
+
+partition "System (Backend)" {
+    :Authenticate User and Authorize Command;
+    note left
+        **Improvement (QA Rec #3):**
+        Added security handshake to address
+        non-functional requirements.
+    end note
+    if (Authorization successful?) then (yes)
+        ' Proceed to command switch
+    else (no)
+        -> Handle Authorization Failure;
+        stop
+    endif
+
+    switch (Selected Remote Command?)
+    case (Lock / Unlock Doors)
+        :Send Lock/Unlock command to Vehicle;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Lock/Unlock Success;
+            else (no)
+                -> Handle Generic Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            note right
+                **Improvement (QA Rec #4):**
+                Expanded failure paths to include
+                network timeouts between backend
+                and vehicle.
+            end note
+            -> Handle Command Timeout;
+        end fork
+
+    case (Climate Preconditioning)
+        :User configures Climate Settings;
+        note right
+            **Improvement (QA Rec #2):**
+            Model acknowledges refined abstractions,
+            e.g., level-based Heated Seats vs.
+            toggle-based Heated Steering Wheel.
+        end note
+        if (Is vehicle plugged in?) then (no)
+            :Display battery consumption warning to User;
+            if (User confirms to proceed?) then (no)
+                :Cancel climate action;
+                stop
+            else (yes)
+                ' Proceed to send command
+            endif
+        endif
+        :Send climate command with settings;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Climate Success;
+            else (no)
+                -> Handle Generic Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            -> Handle Command Timeout;
+        end fork
+
+
+    case (Open Trunk / Frunk)
+        :User selects Front or Rear Trunk;
+        if (Is vehicle stationary?) then (yes)
+            note right
+                **Improvement (QA Rec #1):**
+                Guard condition explicitly linked
+                to a formal Vehicle State Machine
+                (e.g., State = PARKED).
+            end note
+            :Send Open Trunk command;
+            fork
+                :Await response from Vehicle;
+                if (Response is Success?) then (yes)
+                    -> Handle Trunk Success;
+                else (no)
+                    -> Handle Generic Failure;
+                endif
+            fork again
+                :Wait for Timeout;
+                -> Handle Command Timeout;
+            end fork
+        else (no)
+            -> Handle Vehicle Not Stationary;
+        endif
+
+    case (Honk Horn & Flash Lights)
+        :Send Honk & Flash command;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Honk/Flash Success;
+            else (no)
+                -> Handle Generic Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            -> Handle Command Timeout;
+        end fork
+
+    endswitch
+}
+
+partition "User (Mobile App)" {
+    split
+        :Handle Lock/Unlock Success;
+        :Provide haptic feedback;
+        :Display updated door status;
+    split again
+        :Handle Climate Success;
+        :Display updated climate status;
+    split again
+        :Handle Trunk Success;
+        :Display updated trunk status;
+    split again
+        :Handle Honk/Flash Success;
+        :Display "Command Sent" confirmation;
+    split again
+        :Handle Vehicle Not Stationary;
+        :Display Error: "Vehicle must be stationary";
+    split again
+        :Handle Authorization Failure;
+        :Display "Authorization Failed" error;
+    split again
+        :Handle Generic Failure;
+        :Display "Command Failed" error message;
+    split again
+        :Handle Command Timeout;
+        :Display "Request Timed Out. Please try again.";
+    end split
+
+    :End remote session;
+    stop
+}
+@enduml

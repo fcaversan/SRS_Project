@@ -19,6 +19,7 @@ import subprocess
 import google.generativeai as genai
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
+from validation_handler import ValidationHandler
 
 # Load environment variables from .env file
 load_dotenv()
@@ -64,7 +65,7 @@ class UMLDiagramAutomation:
             genai.configure(api_key=self.api_key)
             
             # Initialize the Gemini 2.5 Pro model
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model = genai.GenerativeModel('gemini-2.5-pro')
             print("Gemini 2.5 Pro model initialized successfully!")
             
         except Exception as e:
@@ -833,7 +834,24 @@ Generate ONLY valid modern PlantUML Activity Diagram code:
             )
             iteration_results['validation'] = validation_result
             
-            print(f"\n✅ Validation Complete. Score: {validation_result.get('consistency_score', 'N/A')}/10")
+            # Enhanced validation summary with penalty information
+            score = validation_result.get('consistency_score', 'N/A')
+            metrics = validation_result.get('metrics', {})
+            penalties = metrics.get('penalties_applied')
+            
+            if penalties:
+                original_score = metrics.get('original_overall_score', 'N/A')
+                penalty_total = penalties.get('total_penalty', 0)
+                print(f"\n✅ Validation Complete. Score: {score}/10 (Original: {original_score}/10, Penalties: -{penalty_total})")
+                
+                # Show penalty details
+                penalty_notes = penalties.get('penalty_notes', [])
+                if penalty_notes:
+                    print("📋 Penalty Details:")
+                    for note in penalty_notes:
+                        print(f"  - {note}")
+            else:
+                print(f"\n✅ Validation Complete. Score: {score}/10")
             
         except Exception as e:
             print(f"❌ Iteration failed: {e}")
@@ -864,32 +882,39 @@ REQUIREMENTS SLICE ({slice_name}):
 GENERATED DIAGRAMS:
 
 1. CLASS DIAGRAM (Structure):
-{diagram_contents.get('class', 'Not generated')}
+{diagram_contents.get('class', '**NOT GENERATED** - This diagram was not successfully created.')}
 
 2. SEQUENCE DIAGRAM (Interactions):
-{diagram_contents.get('sequence', 'Not generated')}
+{diagram_contents.get('sequence', '**NOT GENERATED** - This diagram was not successfully created.')}
 
 3. ACTIVITY DIAGRAM (Logic/Workflow):
-{diagram_contents.get('activity', 'Not generated')}
+{diagram_contents.get('activity', '**NOT GENERATED** - This diagram was not successfully created.')}
 
 VALIDATION CRITERIA:
-1. Consistency: Do the diagrams contradict each other? (e.g., Sequence diagram uses classes not in Class diagram)
-2. Completeness: Do the diagrams cover all requirements in the slice?
-3. Quality: Are the diagrams syntactically correct and follow UML best practices?
-4. Gap Analysis: What is missing or ambiguous?
+1. Consistency: Do the successfully generated diagrams contradict each other?
+2. Completeness: Do the generated diagrams cover the requirements they represent?
+3. Quality: Are the generated diagrams syntactically correct and follow UML best practices?
+4. Gap Analysis: What is missing or could be improved?
+
+IMPORTANT INSTRUCTIONS:
+- Only analyze diagrams that were successfully generated (not marked as "NOT GENERATED")
+- Score proportionally based on what was actually created
+- If a diagram was not generated, do not penalize other diagrams for inconsistency with it
+- Focus on the quality and coverage of the diagrams that do exist
 
 **OUTPUT FORMAT:**
 Please provide your analysis in strict JSON format with the following structure:
 {{
-    "consistency_analysis": "Detailed analysis of consistency between diagrams...",
-    "completeness_analysis": "Analysis of how well requirements are covered...",
-    "quality_analysis": "Assessment of diagram quality and syntax...",
-    "gap_analysis": "List of missing elements or ambiguities...",
-    "consistency_score": 8,  // Integer 0-10
-    "completeness_score": 9, // Integer 0-10
-    "quality_score": 8,      // Integer 0-10
-    "overall_score": 8,      // Integer 0-10
-    "recommendations": ["List of specific recommendations for improvement..."]
+    "consistency_analysis": "Analysis of consistency between successfully generated diagrams...",
+    "completeness_analysis": "Analysis of how well generated diagrams cover requirements...",
+    "quality_analysis": "Assessment of generated diagram quality and syntax...",
+    "gap_analysis": "What diagrams are missing and what could be improved...",
+    "consistency_score": 8,  // Integer 0-10 (based on generated diagrams only)
+    "completeness_score": 9, // Integer 0-10 (proportional to generated vs total)
+    "quality_score": 8,      // Integer 0-10 (based on generated diagrams only)
+    "overall_score": 8,      // Integer 0-10 (average of above, proportional)
+    "recommendations": ["List of specific recommendations for improvement..."],
+    "diagrams_evaluated": ["list", "of", "successfully", "generated", "diagram", "types"]
 }}
 
 Ensure the output is valid JSON. Do not include markdown formatting (like ```json) around the output.
@@ -948,18 +973,30 @@ Ensure the output is valid JSON. Do not include markdown formatting (like ```jso
             Dict containing validation results and consistency report
         """
         try:
-            # Read the generated PlantUML files
+            # Handle two types of input:
+            # 1. Dict[str, Dict] - diagram info with 'puml' paths (from generate_diagrams_from_requirements_slice)
+            # 2. Dict[str, str] - direct PlantUML content (from test refinement)
             diagram_contents = {}
             
-            for diagram_type, diagram_info in diagrams.items():
-                if 'puml' in diagram_info and 'error' not in diagram_info:
-                    try:
-                        with open(diagram_info['puml'], 'r', encoding='utf-8') as f:
-                            diagram_contents[diagram_type] = f.read()
-                    except Exception as e:
-                        diagram_contents[diagram_type] = f"Error reading file: {e}"
-                else:
-                    diagram_contents[diagram_type] = "Diagram generation failed"
+            # Check if we have diagram info dictionaries or direct content
+            if diagrams and isinstance(next(iter(diagrams.values())), dict):
+                # Case 1: diagram info dictionaries
+                for diagram_type, diagram_info in diagrams.items():
+                    if 'puml' in diagram_info and 'error' not in diagram_info:
+                        try:
+                            with open(diagram_info['puml'], 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                # Only include valid PlantUML content
+                                if content.strip() and '@startuml' in content and '@enduml' in content:
+                                    diagram_contents[diagram_type] = content
+                        except Exception as e:
+                            print(f"  ⚠️  Skipping {diagram_type} - error reading file: {e}")
+                    # Skip diagrams with errors entirely - don't pass error messages to validator
+            else:
+                # Case 2: direct content strings (already filtered by caller)
+                diagram_contents = diagrams
+            
+            print(f"  📊 Validating {len(diagram_contents)} diagrams: {list(diagram_contents.keys())}")
             
             # Generate validation prompt
             if custom_validation_prompt:
@@ -978,15 +1015,18 @@ Ensure the output is valid JSON. Do not include markdown formatting (like ```jso
             # Get validation report from Gemini
             validation_report = self.send_prompt(validation_prompt)
             
-            # Extract metrics
+            # Extract metrics from Gemini response
             metrics = self.extract_validation_metrics(validation_report)
+            
+            # Apply traditional logic penalties using ValidationHandler
+            metrics = ValidationHandler.apply_diagram_penalties(metrics, diagram_contents)
             
             validation_result = {
                 'report': validation_report,
                 'metrics': metrics,
                 'consistency_score': metrics.get('overall_score', -1), # Use overall score as primary consistency indicator
                 'diagrams_validated': list(diagram_contents.keys()),
-                'summary': f"Consistency analysis completed for {len(diagram_contents)} diagrams",
+                'summary': f"Consistency analysis completed for {len(diagram_contents)} diagrams (Score: {metrics.get('overall_score', 'N/A')}/10)",
                 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             
@@ -1026,7 +1066,23 @@ Ensure the output is valid JSON. Do not include markdown formatting (like ```jso
                 
         report += f"""
 ### 2. Validation Results
-**Overall Score:** {metrics.get('overall_score', 'N/A')}/10
+**Overall Score:** {metrics.get('overall_score', 'N/A')}/10"""
+
+        # Add penalty information if penalties were applied
+        penalties = metrics.get('penalties_applied')
+        if penalties:
+            original_score = metrics.get('original_overall_score', 'N/A')
+            report += f"""
+**Original Score:** {original_score}/10
+**Penalties Applied:** -{penalties.get('total_penalty', 0)} points
+
+#### Penalty Breakdown:"""
+            for note in penalties.get('penalty_notes', []):
+                report += f"""
+- {note}"""
+        
+        report += f"""
+
 **Consistency Score:** {metrics.get('consistency_score', 'N/A')}/10
 **Completeness Score:** {metrics.get('completeness_score', 'N/A')}/10
 **Quality Score:** {metrics.get('quality_score', 'N/A')}/10
@@ -1057,16 +1113,23 @@ Ensure the output is valid JSON. Do not include markdown formatting (like ```jso
             filename (str): Output filename
         """
         try:
+            # Create reports directory if it doesn't exist
+            reports_dir = "reports"
+            os.makedirs(reports_dir, exist_ok=True)
+            
+            # Construct full path
+            report_path = os.path.join(reports_dir, filename)
+            
             report = f"# Iterative Design Workflow Summary\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
             
             for i, result in enumerate(all_iterations, 1):
                 report += self.generate_iteration_report_content(result)
                 report += "\n---\n"
             
-            with open(filename, 'w', encoding='utf-8') as f:
+            with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(report)
                 
-            print(f"\n📄 Workflow summary report saved to: {filename}")
+            print(f"\n📄 Workflow summary report saved to: {report_path}")
             
         except Exception as e:
             print(f"❌ Failed to save workflow summary report: {e}")
@@ -1119,6 +1182,138 @@ Ensure the output is valid JSON. Do not include markdown formatting (like ```jso
             
         except Exception as e:
             print(f"❌ Workflow failed: {e}")
+
+    def generate_design_reviewer_prompt(self, requirements: str, current_puml: str, qa_metrics: dict, diagram_type: str, iteration_num: int) -> str:
+        """
+        Generate a prompt for the Design Reviewer agent to improve diagrams based on QA feedback.
+        
+        Args:
+            requirements (str): Original requirements
+            current_puml (str): Current PlantUML code
+            qa_metrics (dict): QA validation metrics with scores and recommendations
+            diagram_type (str): Type of diagram (class, sequence, activity)
+            iteration_num (int): Current iteration number
+            
+        Returns:
+            str: Design reviewer prompt
+        """
+        diagram_name = diagram_type.capitalize()
+        
+        prompt = f"""
+You are a senior UML architect and design improvement specialist. Your task is to IMPROVE an existing {diagram_name} Diagram based on QA validation feedback.
+
+ITERATION: {iteration_num}
+
+ORIGINAL REQUIREMENTS:
+{requirements}
+
+CURRENT {diagram_name.upper()} DIAGRAM (PlantUML):
+{current_puml}
+
+QA VALIDATION RESULTS:
+- Overall Score: {qa_metrics.get('overall_score', 'N/A')}/10
+- Consistency Score: {qa_metrics.get('consistency_score', 'N/A')}/10
+- Completeness Score: {qa_metrics.get('completeness_score', 'N/A')}/10
+- Quality Score: {qa_metrics.get('quality_score', 'N/A')}/10
+
+CONSISTENCY ANALYSIS:
+{qa_metrics.get('consistency_analysis', 'No analysis provided')}
+
+COMPLETENESS ANALYSIS:
+{qa_metrics.get('completeness_analysis', 'No analysis provided')}
+
+QUALITY ANALYSIS:
+{qa_metrics.get('quality_analysis', 'No analysis provided')}
+
+IDENTIFIED GAPS:
+{qa_metrics.get('gap_analysis', 'No gaps identified')}
+
+RECOMMENDATIONS FOR IMPROVEMENT:
+"""
+        recommendations = qa_metrics.get('recommendations', [])
+        if recommendations:
+            for i, rec in enumerate(recommendations, 1):
+                prompt += f"{i}. {rec}\n"
+        else:
+            prompt += "No specific recommendations provided.\n"
+        
+        prompt += f"""
+
+TASK: Generate an IMPROVED {diagram_name} Diagram that addresses the QA feedback above.
+
+CRITICAL REQUIREMENTS:
+1. Address ALL identified gaps and recommendations
+2. Maintain consistency with the original requirements
+3. Improve completeness by covering all requirement aspects
+4. Enhance quality by following UML best practices
+5. Keep the diagram readable and well-structured
+
+IMPORTANT INSTRUCTIONS:
+- Generate ONLY PlantUML code - no explanations, comments, or additional text
+- Start with @startuml and end with @enduml
+- Use proper PlantUML syntax for {diagram_type} diagrams
+- Make meaningful improvements, don't just copy the current diagram
+
+Generate the improved {diagram_name} Diagram now:
+"""
+        return prompt
+
+    def refine_diagram_with_feedback(self, diagram_type: str, requirements: str, current_diagram_info: dict, qa_metrics: dict, slice_name: str, iteration_num: int) -> dict:
+        """
+        Refine a single diagram based on QA feedback.
+        
+        Args:
+            diagram_type (str): Type of diagram (class, sequence, activity)
+            requirements (str): Original requirements
+            current_diagram_info (dict): Current diagram info with puml path
+            qa_metrics (dict): QA validation metrics
+            slice_name (str): Name of the requirements slice
+            iteration_num (int): Current iteration number (for versioning)
+            
+        Returns:
+            dict: New diagram info with paths to refined files
+        """
+        try:
+            # Read current PlantUML
+            current_puml_path = current_diagram_info.get('puml')
+            if not current_puml_path or not os.path.exists(current_puml_path):
+                raise Exception(f"Current PlantUML file not found: {current_puml_path}")
+            
+            with open(current_puml_path, 'r', encoding='utf-8') as f:
+                current_puml = f.read()
+            
+            print(f"  🔄 Refining {diagram_type} diagram (iteration {iteration_num})...")
+            
+            # Generate Design Reviewer prompt
+            reviewer_prompt = self.generate_design_reviewer_prompt(
+                requirements, current_puml, qa_metrics, diagram_type, iteration_num
+            )
+            
+            # Get improved PlantUML from Gemini
+            improved_puml = self.send_prompt(reviewer_prompt)
+            improved_puml = self.extract_plantuml_code(improved_puml)
+            
+            # Save with version number
+            version_suffix = f"_v{iteration_num}"
+            filename = f"{slice_name}{version_suffix}_{diagram_type}_diagram"
+            puml_path = self.save_puml_file(diagram_type, improved_puml, filename)
+            
+            # Generate image
+            image_path = self.generate_image_from_puml(puml_path)
+            
+            print(f"  ✅ Refined {diagram_type} diagram saved: {puml_path}")
+            
+            return {
+                'puml': puml_path,
+                'image': image_path,
+                'type': f'{diagram_type.capitalize()} Diagram (v{iteration_num})',
+                'version': f'v{iteration_num}',
+                'content': improved_puml
+            }
+            
+        except Exception as e:
+            print(f"  ❌ Failed to refine {diagram_type} diagram: {e}")
+            return {'error': str(e), 'version': f'v{iteration_num}'}
 
 if __name__ == "__main__":
     # Example usage

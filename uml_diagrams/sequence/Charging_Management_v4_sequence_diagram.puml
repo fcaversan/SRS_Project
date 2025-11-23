@@ -1,0 +1,162 @@
+@startuml
+!theme plain
+title Charging_Management_v3 Interactions (Refined)
+
+autonumber
+
+actor User
+participant App
+participant API
+participant VehicleGateway as "Vehicle Gateway"
+database DB
+participant MapService as "Map & Station Service"
+
+group Remote Charging Control (FR-CHG-001, FR-CHG-002)
+
+    User -> App: Tap "Start Charging"
+    App -> API: POST /vehicles/{id}/commands/start_charge\n<font size=10>Authorization: Bearer <token>
+    note right of API: Asynchronous command pattern for vehicle interaction
+    API -> API: Validate request, auth token, and permissions
+    API -> VehicleGateway: GetVehicleStatus(vehicleId)
+    VehicleGateway --> API: Return { is_plugged_in: true, state: 'ready' }
+
+    alt Vehicle is ready to charge
+        API -> VehicleGateway: SendCommand(vehicleId, 'start_charge')
+        API -> App: 202 Accepted (Command sent)
+        App -> User: Display "Starting charging session..."
+        
+        loop Poll for status to confirm state transition
+            App -> API: GET /vehicles/{id}/state/charge\n<font size=10>Authorization: Bearer <token>
+            API --> App: 200 OK (DTO: { state: 'connecting' })
+            ...a few seconds later...
+            App -> API: GET /vehicles/{id}/state/charge\n<font size=10>Authorization: Bearer <token>
+            API --> App: 200 OK (DTO: { state: 'charging', soc: 55, ... })
+            App -> User: Update display to show 'Charging' status
+        end
+        
+    else Vehicle not ready (e.g., not plugged in)
+        API -> App: 409 Conflict (Error: Not plugged in)
+        App -> User: Display error: "Vehicle is not plugged into a compatible charger."
+    end
+
+    ...later...
+
+    User -> App: Tap "Stop Charging"
+    App -> API: POST /vehicles/{id}/commands/stop_charge\n<font size=10>Authorization: Bearer <token>
+    API -> VehicleGateway: SendCommand(vehicleId, 'stop_charge')
+    alt Command accepted by vehicle
+        API -> App: 202 Accepted (Command sent)
+        App -> User: Display "Stopping charging session..."
+    else Command failed
+        API -> App: 500 Internal Server Error
+        App -> User: Display error: "Failed to stop charging session."
+    end
+end
+
+group Monitor Active Charging Session (FR-CHG-003)
+    User -> App: View charging screen
+    loop Periodically (e.g., every 15s)
+        App -> API: GET /vehicles/{id}/state/charge\n<font size=10>Authorization: Bearer <token>
+        alt API responds with data
+            API -> App: 200 OK (DTO: {soc, time_to_full, rate_kw, voltage, amperage, state: 'charging'})
+            App -> User: Update display with SoC, ETA, rate, etc.
+        else API request fails
+            API -> App: 503 Service Unavailable
+            App -> User: Display stale data with "Could not refresh status" message
+        end
+    end
+end
+
+group Manage Charging Settings (FR-CHG-004)
+    User -> App: Open "Charging Settings"
+    App -> API: GET /vehicles/{id}/settings/charge\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Query for current charge limit
+    DB --> API: Return current setting (e.g., 80%)
+    API -> App: 200 OK (JSON: {daily_limit: 80})
+    App -> User: Display charge limit slider (default 80%)
+    
+    User -> App: Set new daily charge limit (e.g., 90%)
+    App -> API: PUT /vehicles/{id}/settings/charge (body: {daily_limit: 90})\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Update charge limit for vehicle
+    DB --> API: Confirm update
+    alt Update successful
+        API -> App: 200 OK
+        App -> User: Display "Daily charge limit updated to 90%"
+    else Update failed (e.g., invalid value)
+        API -> App: 400 Bad Request
+        App -> User: Display error: "Invalid limit. Please choose a value between 50-100%."
+    end
+    
+    User -> App: Tap "Charge to 100% for Trip"
+    App -> API: POST /vehicles/{id}/settings/charge/trip\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Set one-time charge limit override to 100%
+    DB --> API: Confirm override
+    API -> App: 200 OK
+    App -> User: Display "Trip mode activated. Vehicle will charge to 100%."
+end
+
+group Manage Charging Schedules (FR-CHG-005)
+    User -> App: Navigate to "Charging Schedules"
+    App -> API: GET /vehicles/{id}/schedules\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Query for existing schedules
+    DB --> API: Return list of schedules
+    API -> App: 200 OK (JSON with schedules)
+    App -> User: Display list of existing schedules
+
+    User -> App: Tap "Create New Schedule"
+    User -> App: Input details (e.g., "Ready by 7:00 AM")
+    App -> API: POST /vehicles/{id}/schedules (body: {type: "ready-by", time: "07:00"})\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Insert new schedule
+    DB --> API: Return new schedule ID
+    alt Creation successful
+        API -> App: 201 Created
+        App -> App: Refresh schedule list
+        App -> User: Display "Schedule created" confirmation
+    else Creation failed
+        API -> App: 409 Conflict (Error: Overlapping schedule)
+        App -> User: Display error: "This schedule conflicts with an existing one."
+    end
+
+    User -> App: Select and edit an existing schedule
+    App -> API: PUT /vehicles/{id}/schedules/{scheduleId} (body: {time: "06:30"})\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Update existing schedule
+    DB --> API: Confirm update
+    API -> App: 200 OK
+    App -> App: Refresh schedule list
+    App -> User: Display "Schedule updated"
+    
+    User -> App: Tap "Delete" on a schedule
+    App -> API: DELETE /vehicles/{id}/schedules/{scheduleId}\n<font size=10>Authorization: Bearer <token>
+    API -> DB: Delete schedule from DB
+    alt Deletion successful
+        API -> App: 204 No Content
+        App -> App: Refresh schedule list
+        App -> User: Schedule is removed from the list
+    else Deletion failed
+        API -> App: 404 Not Found
+        App -> User: Display error: "Schedule could not be found."
+    end
+end
+
+group Find Charging Stations (FR-CHG-006, FR-CHG-007, FR-CHG-008)
+    User -> App: Open "Charger Map"
+    App -> API: GET /chargers?lat={lat}&lng={lng}\n<font size=10>Authorization: Bearer <token>
+    API -> MapService: Query for nearby chargers with real-time availability
+    alt Chargers found
+        MapService --> API: Return list of chargers (location, connectors, power, availability, availabilityLastUpdated)
+        API -> App: 200 OK (JSON with charger list and freshness timestamps)
+        App -> User: Display map with charger pins\n<font size=10>(e.g., "Available, updated 2 mins ago")
+    else Service error or no chargers found
+        MapService --> API: Error or empty list
+        API -> App: 500 Server Error or 200 OK (empty list)
+        App -> User: Display error: "Could not load chargers or none found nearby."
+    end
+
+    User -> App: Apply filters (e.g., Connector: CCS, Power: >150kW)
+    App -> API: GET /chargers?lat={lat}&lng={lng}&connector=CCS&power_min=150\n<font size=10>Authorization: Bearer <token>
+    API -> MapService: Query for chargers matching filter criteria
+    MapService --> API: Return filtered list of chargers
+    API -> App: 200 OK (JSON with filtered charger list)
+    App -> User: Display updated map with filtered chargers
+end
+@enduml

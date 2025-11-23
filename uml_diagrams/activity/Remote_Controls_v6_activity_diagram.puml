@@ -1,0 +1,193 @@
+@startuml
+!theme spacelab
+title Iteration 6: Consolidated Remote Control Activity Diagram (Post-QA)
+' Diagram improved by a Senior UML Architect to address QA feedback from Iteration 5.
+
+partition "User (Mobile App)" {
+    start
+    :User selects an available remote command;
+    note left
+        **Design Note (QA Rec #4):** "Available" implies a UI
+        dynamically built from a preceding feature
+        discovery step (e.g., GET /vehicle/features),
+        providing context for feature-related errors.
+    end note
+}
+
+partition "Remote Control System (Cloud API)" {
+    :Authenticate User and Authorize Command;
+    if (Authorization successful?) then (yes)
+        ' Proceed to command switch
+    else (no)
+        :Set Payload to 'AuthorizationFailure';
+        -> Send Notification;
+        stop
+    endif
+
+    switch (Selected Remote Command?)
+    case (Lock / Unlock Doors)
+        :Send Lock/Unlock Command to Vehicle;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                :Set Payload to 'LockUnlockSuccess';
+            else (no)
+                :Set Payload to 'GenericFailure';
+            endif
+        fork again
+            :Wait for Timeout;
+            :Set Payload to 'RequestTimeout';
+        end fork
+
+    case (Climate Preconditioning)
+        :User configures Climate Settings;
+        :Verify Command Eligibility via State Machine\n(Required State: PARKED);
+        note left
+            **QA Rec #1:** State checks are formalized into a single
+            validation step, implying a formal State Machine
+            is the source of truth for command eligibility.
+        end note
+        if (State is Eligible?) then (yes)
+            :Request Power Source Status from Vehicle;
+            if (Vehicle is plugged in?) then (yes)
+                ' Proceed directly
+            else (no)
+                :Display battery consumption warning to User;
+                if (User confirms to proceed?) then (yes)
+                    ' Proceed to send command
+                else (no)
+                    :Cancel climate action;
+                    stop
+                endif
+            endif
+            :Send Climate Command with settings to Vehicle;
+            fork
+                :Await response from Vehicle;
+                switch (Vehicle Response?)
+                case (Success)
+                    :Set Payload to 'ClimateSuccess';
+                case (Invalid Parameter)
+                    :Set Payload to 'InvalidParameter';
+                case (Generic Failure)
+                    :Set Payload to 'GenericFailure';
+                endswitch
+            fork again
+                :Wait for Timeout;
+                :Set Payload to 'RequestTimeout';
+            end fork
+        else (no)
+            :Set Payload to 'VehicleNotStationary';
+        endif
+
+    case (Open Trunk / Frunk)
+        :User selects Front or Rear Trunk;
+        :Verify Command Eligibility via State Machine\n(Required State: PARKED);
+        if (State is Eligible?) then (yes)
+            :Send Open Trunk Command to Vehicle;
+            fork
+                :Await response from Vehicle;
+                if (Response is Success?) then (yes)
+                    :Set Payload to 'TrunkSuccess';
+                else (no)
+                    :Set Payload to 'GenericFailure';
+                endif
+            fork again
+                :Wait for Timeout;
+                :Set Payload to 'RequestTimeout';
+            end fork
+        else (no)
+            :Set Payload to 'VehicleNotStationary';
+        endif
+
+    case (Honk Horn & Flash Lights)
+        :Verify Command Eligibility via State Machine\n(Required State: PARKED);
+        if (State is Eligible?) then (yes)
+            :Send HonkHornAndFlashLights Command to Vehicle;
+            note left: **QA Rec #3:** Command name refined to be more specific.
+            fork
+                :Await response from Vehicle;
+                if (Response is Success?) then (yes)
+                    :Set Payload to 'HonkFlashSuccess';
+                else (no)
+                    :Set Payload to 'GenericFailure';
+                endif
+            fork again
+                :Wait for Timeout;
+                :Set Payload to 'RequestTimeout';
+            end fork
+        else (no)
+            :Set Payload to 'VehicleNotStationary';
+        endif
+    endswitch
+}
+
+partition "Vehicle (Onboard ECU)" {
+    split
+        :Receive Lock/Unlock Command;
+        :Actuate door locks;
+        :Send Success/Failure Response;
+    split again
+        :Receive Power Status Request;
+        :Report Power Source (PluggedIn/Battery);
+    split again
+        :Receive Climate Command;
+        :Validate settings against vehicle hardware config;
+        if (Settings are valid?) then (yes)
+            :Activate HVAC system components;
+            :Send Success/Failure Response;
+        else (no)
+            :Send InvalidParameter Response;
+        endif
+    split again
+        :Receive State Eligibility Query;
+        :Report Current State (e.g., PARKED);
+    split again
+        :Receive Open Trunk Command;
+        :Actuate trunk latch;
+        :Send Success/Failure Response;
+    split again
+        :Receive HonkHornAndFlashLights Command;
+        :Activate horn and exterior lights;
+        :Send Success/Failure Response;
+    end split
+}
+
+partition "Remote Control System (Cloud API)" {
+    #lightgreen:Send Notification;
+    :Format and Send Push Notification with Payload;
+    note left
+        **QA Rec #5:** Consolidated notification step.
+        All command paths now converge on this single
+        action, reducing diagram redundancy and
+        improving overall clarity and maintainability.
+    end note
+}
+
+partition "User (Mobile App)" {
+    ->:Receive and Process Notification;
+    switch (Notification Payload?)
+    case ('LockUnlockSuccess')
+        :Provide haptic feedback;
+        :Display updated door status;
+    case ('ClimateSuccess')
+        :Display updated climate status;
+    case ('TrunkSuccess')
+        :Display updated trunk status;
+    case ('HonkFlashSuccess')
+        :Display "Command Sent" confirmation;
+    case ('VehicleNotStationary')
+        :Display Error: "Vehicle must be parked to perform this action.";
+    case ('AuthorizationFailure')
+        :Display "Authorization Failed" error;
+    case ('InvalidParameter')
+        :Display Error: "Action failed. Feature not available on this vehicle.";
+    case ('GenericFailure')
+        :Display "Command Failed. Vehicle did not respond as expected.";
+    case ('RequestTimeout')
+        :Display "Request Timed Out. Please check connectivity.";
+    endswitch
+
+    :End remote session;
+    stop
+}
+@enduml

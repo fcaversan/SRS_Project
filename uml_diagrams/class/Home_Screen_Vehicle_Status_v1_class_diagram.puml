@@ -1,0 +1,74 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+class HomeScreen {
+  + updateView(vehicle: Vehicle, prefs: UserPreferences)
+}
+
+class VehicleRepresentation {
+  - vehicleImage: Image
+  + render()
+}
+
+class Vehicle {
+  - lockStatus: LockStatus
+  - ambientTemperature: float
+  - energyConsumptionTrends: List<float>
+  + getLockStatus(): LockStatus
+  + getCabinTemperature(): float
+  + isClimateControlActive(): boolean
+  + getCurrentSoC(): float
+  + getEstimatedRange(preferredUnit: Unit): float
+}
+
+class Battery {
+  - stateOfCharge: float
+  + getSoC(): float
+}
+
+class ClimateControlSystem {
+  - isActive: boolean
+  - interiorTemperature: float
+  + isActive(): boolean
+  + getTemperature(): float
+}
+
+class UserPreferences {
+  - preferredRangeUnit: Unit
+  + getPreferredUnit(): Unit
+}
+
+enum LockStatus {
+  LOCKED
+  UNLOCKED
+}
+
+enum Unit {
+  MILES
+  KILOMETERS
+}
+
+' --- Relationships ---
+
+' A HomeScreen displays information about one Vehicle.
+HomeScreen "1" o-- "1" Vehicle
+
+' A HomeScreen is composed of one graphical representation of the vehicle.
+HomeScreen "1" *-- "1" VehicleRepresentation
+
+' A Vehicle is composed of its core components.
+Vehicle "1" *-- "1" Battery
+Vehicle "1" *-- "1" ClimateControlSystem
+
+' HomeScreen and Vehicle use UserPreferences to handle units.
+' This is a usage dependency.
+HomeScreen "1" ..> "1" UserPreferences : uses
+Vehicle "1" ..> "1" UserPreferences : uses
+
+' Enum relationships
+Vehicle --> "1" LockStatus
+UserPreferences --> "1" Unit
+
+@enduml

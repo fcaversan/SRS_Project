@@ -78,3 +78,88 @@ class ValidationHandler:
                 metrics['gap_analysis'] = f"[PENALTIES APPLIED: {penalty_summary}]"
         
         return metrics
+
+    @staticmethod
+    def save_iteration_qa_report(validation_result: Dict, slice_name: str, iteration_num: int) -> str:
+        """
+        Save individual QA report for a specific iteration.
+        
+        Args:
+            validation_result (Dict): Validation results with metrics
+            slice_name (str): Name of the requirements slice
+            iteration_num (int): Iteration number
+            
+        Returns:
+            str: Path to saved report file
+        """
+        try:
+            metrics = validation_result.get('metrics', {})
+            timestamp = validation_result.get('timestamp', 'Unknown')
+            
+            # Include penalty information if available
+            penalty_info = ""
+            if 'penalties_applied' in metrics:
+                penalties = metrics['penalties_applied']
+                if penalties.get('total_penalty', 0) > 0:
+                    penalty_info = f"""
+
+## Penalty System Applied
+- **Original Score:** {metrics.get('original_overall_score', 'N/A')}/10
+- **Penalties Applied:** -{penalties.get('total_penalty', 0)} points
+- **Final Score:** {metrics.get('overall_score', 'N/A')}/10
+
+### Penalty Breakdown:
+"""
+                    for note in penalties.get('penalty_notes', []):
+                        penalty_info += f"- {note}\n"
+            
+            report_content = f"""# QA Validation Report - Iteration {iteration_num}
+**Slice:** {slice_name}
+**Version:** v{iteration_num}
+**Timestamp:** {timestamp}
+
+## Validation Scores
+- **Overall Score:** {metrics.get('overall_score', 'N/A')}/10
+- **Consistency Score:** {metrics.get('consistency_score', 'N/A')}/10
+- **Completeness Score:** {metrics.get('completeness_score', 'N/A')}/10
+- **Quality Score:** {metrics.get('quality_score', 'N/A')}/10{penalty_info}
+
+## Detailed Analysis
+
+### Consistency Analysis
+{metrics.get('consistency_analysis', 'No analysis provided')}
+
+### Completeness Analysis
+{metrics.get('completeness_analysis', 'No analysis provided')}
+
+### Quality Analysis
+{metrics.get('quality_analysis', 'No analysis provided')}
+
+### Gap Analysis
+{metrics.get('gap_analysis', 'No gaps identified')}
+
+## Recommendations
+"""
+            recommendations = metrics.get('recommendations', [])
+            if recommendations:
+                for i, rec in enumerate(recommendations, 1):
+                    report_content += f"{i}. {rec}\n"
+            else:
+                report_content += "No specific recommendations provided.\n"
+            
+            # Save report
+            reports_dir = "reports"
+            os.makedirs(reports_dir, exist_ok=True)
+            
+            report_filename = f"qa_report_{slice_name}_v{iteration_num}.md"
+            report_path = os.path.join(reports_dir, report_filename)
+            
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+            
+            print(f"  📄 QA report saved: {report_path}")
+            return report_path
+            
+        except Exception as e:
+            print(f"  ❌ Failed to save QA report: {e}")
+            return None

@@ -1,0 +1,82 @@
+@startuml
+' v3.0 - Aligned with backend architecture based on Iteration 2 QA feedback
+!theme materia
+
+title Home_Screen_Vehicle_Status_v3 Interactions (Aligned with Backend Architecture)
+
+skinparam note {
+    BackgroundColor #LightYellow
+    BorderColor #orange
+}
+
+autonumber "0."
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Vehicle API" as API
+participant "Data Store" as DB
+participant "Vehicle (TCU)" as TCU
+
+User -> App: Opens application / Navigates to Home Screen
+activate App
+
+App -> API: GET /v2/vehicle/{id}/status
+activate API
+note right of API: Single endpoint aggregates all data for the Home Screen.
+
+API -> DB: getVehicleState(vehicleId)
+activate DB
+DB --> API: cachedVehicleState, timestamp
+deactivate DB
+
+opt Data is stale (e.g., timestamp > 5 minutes ago)
+    group Live Data Refresh Attempt
+        API -> TCU: requestTelemetryUpdate()
+        activate TCU
+        alt Vehicle is Online and Responds
+            TCU --> API: liveTelemetryData
+            deactivate TCU
+            API -> DB: persistVehicleState(vehicleId, liveTelemetryData)
+            note right of API: Persist fresh data and update cache timestamp.
+            API -> API: cachedVehicleState = liveTelemetryData
+        else Vehicle is Offline or Unresponsive
+            TCU --> API: Error: Timeout
+            deactivate TCU
+            note right of API: Vehicle is unreachable. Proceeding with stale data.
+        end
+    end
+end
+
+note over API
+**Architectural Decision (FR-HSS-004):**
+Estimated range calculation is performed by the backend API.
+This ensures a consistent calculation model across all clients
+and allows for future enhancements without app updates.
+end note
+API -> API: calculateEstimatedRange(cachedVehicleState)
+
+alt Successful Fetch (Fresh or Stale Data)
+    API --> App: 200 OK - VehicleStatusDTO\n{\n  soc: 85, (FR-HSS-001)\n  estimatedRange: "250 mi", (FR-HSS-003, 004)\n  isLocked: true, (FR-HSS-005)\n  cabinTemp: "72°F", (FR-HSS-006)\n  isClimateActive: false, (FR-HSS-007)\n  isStale: false,\n  lastUpdated: "now"\n}
+    deactivate API
+
+    App -> App: updateView(vehicleStatusDTO)
+    note left of App: The view is updated using the received Data Transfer Object.
+
+    alt Data is fresh
+        App --> User: Display current vehicle status:\n- SoC & Visual Battery (FR-HSS-001, 002)\n- Estimated Range (FR-HSS-003)\n- Lock, Cabin Temp, Climate Status (FR-HSS-005, 006, 007)\n- Vehicle Graphic (FR-HSS-008)
+    else Data is stale (dto.isStale == true)
+        App -> App: showStaleDataWarning()
+        App --> User: Display last known status\nwith a banner: "Status last updated 15 minutes ago"
+    end
+
+else API or Network Failure
+    API --> App: 5xx Service Unavailable
+    deactivate API
+
+    App -> App: displayGenericError()
+    App --> User: Display error message:\n"Unable to fetch vehicle status. Please try again."
+end
+
+deactivate App
+
+@enduml

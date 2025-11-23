@@ -1,0 +1,68 @@
+@startuml
+title Improved Home Screen Data Loading Activity Diagram (Iteration 2)
+|Client App|
+start
+:User navigates to Home Screen;
+:Show loading indicator;
+:Send GET /vehicle/status request;
+
+|#Technology|Backend API|
+note right: Receives request
+:Authenticate user and identify vehicle;
+fork
+  :Fetch Battery & Environment Data
+  (SoC, consumption, temp);
+  note left
+    This is where the business logic for
+    range calculation now resides, resolving
+    the architectural inconsistency.
+  end note
+  :Calculate Estimated Range
+  (FR-HSS-004);
+  if (User preference is KM?) then (yes)
+    :Format range in KM;
+  else (no)
+    :Format range in Miles;
+  endif
+
+fork again
+  :Fetch Security & Climate Data
+  (lock status, cabin temp, climate active);
+
+fork again
+  :Fetch Vehicle Visual Asset Identifier;
+
+fork end
+:Assemble Vehicle Status DTO;
+:Send API Response with DTO;
+
+|Client App|
+:Receive API Response;
+if (Response successful and data is fresh?) then (yes)
+  :Parse Vehicle Status DTO;
+  :Hide loading indicator;
+  fork
+    'Battery and Range UI
+    :Update SoC & Range display
+    (FR-HSS-001, FR-HSS-003);
+    :Generate visual battery representation
+    (FR-HSS-002);
+
+  fork again
+    'Security and Climate UI
+    :Update Lock, Temperature & Climate status
+    (FR-HSS-005, FR-HSS-006, FR-HSS-007);
+
+  fork again
+    'Visual Asset UI
+    :Load vehicle graphical representation
+    (FR-HSS-008);
+
+  fork end
+  :Render updated Home Screen UI;
+
+else (no / stale data / error)
+  :Display error message or stale data indicator;
+endif
+stop
+@enduml

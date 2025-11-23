@@ -1,0 +1,31 @@
+@startuml
+start
+:User navigates to Home Screen;
+:Request latest vehicle status data;
+fork
+  'Battery and Range Processing
+  :Fetch State of Charge (SoC), consumption trends, and ambient temperature;
+  :Calculate estimated vehicle range;
+  if (User's preferred unit is Kilometers?) then (yes)
+    :Format range in KM;
+  else (no)
+    :Format range in Miles;
+  endif
+  :Format SoC as percentage value;
+  :Generate visual representation of battery level from SoC;
+
+fork again
+  'Security and Climate Processing
+  :Fetch vehicle lock status;
+  :Fetch interior cabin temperature;
+  :Fetch climate control activity status;
+
+fork again
+  'Visual Asset Processing
+  :Load graphical representation of user's vehicle;
+
+fork end
+:Assemble all data components for display;
+:Render Home Screen with all vehicle information;
+stop
+@enduml

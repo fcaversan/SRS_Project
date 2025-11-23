@@ -1,0 +1,76 @@
+@startuml
+' v2.0 - Improved based on QA Feedback
+!theme materia
+
+title Home_Screen_Vehicle_Status_v2 Interactions (Improved)
+
+autonumber "0."
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Vehicle API" as API
+participant "Data Store" as DB
+participant "Vehicle (TCU)" as TCU
+
+User -> App: Opens application / Navigates to Home Screen
+activate App
+
+App -> API: GET /v2/vehicle/{id}/display_status
+activate API
+note right of API: Request aggregates all data needed for the Home Screen.
+
+API -> DB: getLatestVehicleData(vehicleId)
+activate DB
+DB --> API: lastKnownData, timestamp
+deactivate DB
+
+opt Data is stale (e.g., timestamp > 5 minutes old)
+    group Live Data Refresh Attempt
+        API -> TCU: requestTelemetryUpdate()
+        activate TCU
+        alt Vehicle is Online and Responds
+            TCU --> API: liveTelemetryData
+            deactivate TCU
+            API -> DB: updateVehicleData(vehicleId, liveTelemetryData)
+            note right of API: Update cache with fresh data from the vehicle.
+        else Vehicle is Offline (Timeout)
+            TCU --> API: Error / Timeout
+            deactivate TCU
+            note right of API: Proceeding with stale data as vehicle is unreachable.
+        end
+    end
+end
+
+note over API
+**Architectural Decision:**
+Estimated range calculation (FR-HSS-004) is performed
+by the backend API. This ensures a single source of truth
+and allows for more complex calculation models.
+end note
+API -> API: calculateEstimatedRange(SoC, consumption, temp)
+
+alt Fresh Data Available (from initial DB read or live refresh)
+    API --> App: 200 OK - VehicleStatusResponse\n{\n  soc: 85, (FR-HSS-001)\n  estimatedRange: "250 mi", (FR-HSS-003, 004)\n  isLocked: true, (FR-HSS-005)\n  cabinTemp: "72°F", (FR-HSS-006)\n  isClimateActive: false, (FR-HSS-007)\n  lastUpdated: "now"\n}
+    deactivate API
+
+    App -> App: Render Home Screen UI components
+    App --> User: Display current vehicle status:\n- SoC & Visual Battery (FR-HSS-001, 002)\n- Estimated Range (FR-HSS-003)\n- Lock, Cabin Temp, Climate Status (FR-HSS-005, 006, 007)\n- Vehicle Graphic (FR-HSS-008)
+
+else Only Stale Data Available (Vehicle was Offline)
+    API --> App: 200 OK - StaleVehicleStatusResponse\n{\n  soc: 86,\n  estimatedRange: "255 mi",\n  ...,\n  lastUpdated: "15 minutes ago"\n}
+    deactivate API
+
+    App -> App: Render Home Screen with stale data indicator
+    App --> User: Display last known status\nwith a banner: "Status last updated 15 minutes ago"
+
+else General API or Network Failure
+    API --> App: 503 Service Unavailable
+    deactivate API
+
+    App -> App: Handle API error gracefully
+    App --> User: Display error message:\n"Unable to fetch vehicle status. Please try again."
+end
+
+deactivate App
+
+@enduml

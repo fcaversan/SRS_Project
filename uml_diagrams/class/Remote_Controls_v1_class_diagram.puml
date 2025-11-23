@@ -1,0 +1,203 @@
+@startuml
+
+' Style settings for better readability
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam defaultFontName "Segoe UI"
+skinparam class {
+    BackgroundColor White
+    ArrowColor #262626
+    BorderColor #262626
+}
+
+' ---------- Enumerations for States and Types ----------
+enum LockState {
+  LOCKED
+  UNLOCKED
+}
+
+enum ComponentState {
+  ACTIVE
+  INACTIVE
+}
+
+enum TrunkLocation {
+  FRONT
+  REAR
+}
+
+enum DefrosterLocation {
+  FRONT
+  REAR
+}
+
+enum PlugStatus {
+    PLUGGED_IN
+    UNPLUGGED
+}
+
+' ---------- Main Classes ----------
+
+class MobileDevice {
+  + deviceID: string
+  --
+  + sendLockRequest(vehicleID: string): bool
+  + sendUnlockRequest(vehicleID: string): bool
+  + sendClimateRequest(vehicleID: string, settings: ClimateSettings): bool
+  + sendTrunkRequest(vehicleID: string, location: TrunkLocation): bool
+  + sendAlertRequest(vehicleID: string): bool
+  + displayWarning(message: string): void
+  + triggerHapticFeedback(): void
+}
+note right of MobileDevice::triggerHapticFeedback
+  **FR-RMC-010**: Provide haptic feedback on
+  successful lock or unlock command.
+end note
+note right of MobileDevice::displayWarning
+  **FR-RMC-007**: Display warning to the user if
+  attempting to precondition while not plugged in.
+end note
+
+class RemoteControlSystem {
+  --
+  + processLockRequest(vehicleID: string): bool
+  + processUnlockRequest(vehicleID: string): bool
+  + processClimateRequest(vehicleID: string, settings: ClimateSettings): bool
+  + processTrunkRequest(vehicleID: string, location: TrunkLocation): bool
+  + processAlertRequest(vehicleID: string): bool
+}
+
+class Vehicle {
+  + vin: string
+  + model: string
+}
+
+' ---------- Vehicle Subsystem Classes ----------
+
+class DoorSystem {
+  - lockState: LockState
+  --
+  + lock(): void
+  + unlock(): void
+  + getLockState(): LockState
+}
+note right of DoorSystem
+  **FR-RMC-001**: Remotely lock doors.
+  **FR-RMC-002**: Remotely unlock doors.
+end note
+
+class ClimateControlSystem {
+  - state: ComponentState
+  - targetTemperature: float
+  --
+  + activate(): void
+  + deactivate(): void
+  + setTargetTemperature(temp: float): void
+}
+note top of ClimateControlSystem
+  **FR-RMC-003**: Activate climate control.
+  **FR-RMC-004**: Set target temperature.
+end note
+
+abstract class HeatedElement {
+  # location: string
+  # state: ComponentState
+  --
+  + {abstract} activate(): void
+  + {abstract} deactivate(): void
+  + getState(): ComponentState
+}
+note right of HeatedElement
+  **FR-RMC-005**: Activate/deactivate
+  heated seats and steering wheel.
+end note
+
+class HeatedSeat {
+  + activate(): void
+  + deactivate(): void
+}
+
+class HeatedSteeringWheel {
+  + activate(): void
+  + deactivate(): void
+}
+
+class Defroster {
+  - location: DefrosterLocation
+  - state: ComponentState
+  --
+  + activate(): void
+  + deactivate(): void
+}
+note right of Defroster
+  **FR-RMC-006**: Activate front
+  and rear defrosters.
+end note
+
+class TrunkSystem {
+  - frontTrunkState: LockState
+  - rearTrunkState: LockState
+  --
+  + open(location: TrunkLocation): void
+}
+note right of TrunkSystem
+  **FR-RMC-008**: Open front trunk
+  (frunk) and rear trunk.
+end note
+
+class ExteriorAlertSystem {
+  --
+  + honkHorn(): void
+  + flashLights(): void
+}
+note right of ExteriorAlertSystem
+  **FR-RMC-009**: Honk the horn
+  and flash the lights.
+end note
+
+class PowerSystem {
+    - plugStatus: PlugStatus
+    - batteryLevel: int
+    --
+    + isPluggedIn(): bool
+}
+note top of PowerSystem
+  **FR-RMC-007**: Check if vehicle is plugged in
+  before preconditioning to avoid battery drain.
+end note
+
+' ---------- Data Transfer Object (DTO) for Settings ----------
+class ClimateSettings <<(D,orchid) Data>> {
+    + targetTemperature: float
+    + heatedElements: map<ElementLocation, bool>
+    + defrosters: map<DefrosterLocation, bool>
+}
+
+' ---------- Relationships and Multiplicity ----------
+
+' System-level relationships (Aggregation)
+RemoteControlSystem "1" o-- "0..*" MobileDevice : communicates with
+RemoteControlSystem "1" o-- "0..*" Vehicle : controls
+
+' Vehicle composition
+Vehicle "1" *-- "1" DoorSystem
+Vehicle "1" *-- "1" ClimateControlSystem
+Vehicle "1" *-- "1" TrunkSystem
+Vehicle "1" *-- "1" ExteriorAlertSystem
+Vehicle "1" *-- "1" PowerSystem
+
+' ClimateControlSystem composition
+ClimateControlSystem "1" *-- "0..*" HeatedElement
+ClimateControlSystem "1" *-- "2" Defroster
+
+' HeatedElement inheritance
+HeatedElement <|-- HeatedSeat
+HeatedElement <|-- HeatedSteeringWheel
+
+' Dependency on DTO
+RemoteControlSystem ..> ClimateSettings
+MobileDevice ..> ClimateSettings
+
+@enduml

@@ -1,0 +1,141 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+hide empty members
+skinparam linetype ortho
+
+' =========================================================
+' Interfaces and Data Sources
+' =========================================================
+interface IVehicleAPI <<Service>> {
+  + fetchVehicleStatus(prefs: UserPreferences): Vehicle
+}
+
+note right of IVehicleAPI
+  Represents the contract with the backend API.
+  The range calculation (FR-HSS-004) is performed
+  by the service implementing this interface,
+  resolving the architectural inconsistency.
+end note
+
+' =========================================================
+' UI and Presentation Layer
+' =========================================================
+class HomeScreen {
+  - vehicleApi: IVehicleAPI
+  + refreshData()
+}
+
+class VehicleRepresentation {
+  - vehicleImage: Image
+  + render(vehicle: Vehicle)
+}
+
+' =========================================================
+' Domain Model (Client-Side)
+' =========================================================
+class Vehicle <<Facade>> {
+  - lockStatus: LockStatus
+  - connectionStatus: ConnectionStatus
+  - lastUpdated: Timestamp
+  + getLockStatus(): LockStatus
+  + getCabinTemperature(): float
+  + isClimateControlActive(): boolean
+  + getCurrentSoC(): float
+  + getEstimatedRange(): Range
+  + getConnectionStatus(): ConnectionStatus
+  + getLastUpdated(): Timestamp
+}
+
+note top on link (Vehicle, ClimateControlSystem)
+  <<delegates>>
+end note
+note top on link (Vehicle, Battery)
+  <<delegates>>
+end note
+note right of Vehicle
+  The Vehicle class now acts as a pure data holder and Façade.
+  Raw data for range calculation (e.g., ambient temperature)
+  is no longer stored on the client. It receives a pre-calculated
+  'Range' object from the API.
+  It also models connection status and data freshness.
+end note
+
+
+class Battery {
+  - stateOfCharge: float
+  + getSoC(): float
+}
+
+class ClimateControlSystem {
+  - isActive: boolean
+  - interiorTemperature: float
+  + isActive(): boolean
+  + getTemperature(): float
+}
+
+class Range {
+  - value: float
+  - unit: Unit
+  + getValue(): float
+  + getUnit(): Unit
+}
+
+class UserPreferences {
+  - preferredRangeUnit: Unit
+  + getPreferredUnit(): Unit
+}
+
+' =========================================================
+' Enumerations
+' =========================================================
+enum LockStatus {
+  LOCKED
+  UNLOCKED
+}
+
+enum Unit {
+  MILES
+  KILOMETERS
+}
+
+enum ConnectionStatus {
+  ONLINE
+  OFFLINE
+  STALE_DATA
+}
+
+' =========================================================
+' Relationships
+' =========================================================
+
+' --- Application Architecture ---
+' HomeScreen uses the API to fetch vehicle data.
+HomeScreen "1" ..> "1" IVehicleAPI : uses
+' The API returns a Vehicle object.
+IVehicleAPI ..> Vehicle : creates
+
+' --- UI Composition and Data Display ---
+' HomeScreen displays the state of one Vehicle.
+HomeScreen "1" o-- "1" Vehicle : displays
+' HomeScreen is composed of a graphical vehicle representation.
+HomeScreen "1" *-- "1" VehicleRepresentation
+' The representation is rendered based on the Vehicle model.
+VehicleRepresentation ..> Vehicle : uses
+
+' --- Vehicle Domain Model Composition ---
+' Vehicle is a Façade that is composed of its core components.
+Vehicle "1" *-- "1" Battery
+Vehicle "1" *-- "1" ClimateControlSystem
+Vehicle "1" *-- "1" Range : contains calculated
+
+' --- Dependencies and Data Usage ---
+' HomeScreen uses UserPreferences to request data in the correct format.
+HomeScreen ..> UserPreferences : uses
+' Enums are used by various classes.
+Vehicle --> "1" LockStatus
+Vehicle --> "1" ConnectionStatus
+Range --> "1" Unit
+UserPreferences --> "1" Unit
+
+@enduml

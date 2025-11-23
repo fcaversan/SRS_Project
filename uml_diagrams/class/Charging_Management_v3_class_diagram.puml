@@ -1,0 +1,146 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+class User {
+}
+
+' Services / Facades
+class ChargingManager {
+  + startRemoteCharging(vehicle: Vehicle): ChargingSession
+  + stopRemoteCharging(session: ChargingSession): void
+  + getChargingStatus(session: ChargingSession): ChargingStatusDTO
+  + setChargingLimit(vehicle: Vehicle, limit: int, isForTrip: boolean): void
+  + createSchedule(vehicle: Vehicle, scheduleDetails: ScheduleDTO): ChargingSchedule
+  + editSchedule(schedule: ChargingSchedule, scheduleDetails: ScheduleDTO): void
+  + deleteSchedule(schedule: ChargingSchedule): void
+  + findChargingStations(filter: FilterCriteria): List<ChargingStation>
+}
+
+class ChargingStationFinder {
+  + findStations(criteria: FilterCriteria): List<ChargingStation>
+  + applyFilter(stations: List<ChargingStation>, criteria: FilterCriteria): List<ChargingStation>
+}
+
+' Core Domain Entities
+class Vehicle {
+  - vin: String
+  - isPluggedIn: boolean
+  - currentSoC: int
+}
+
+class ChargingSettings {
+  - maxChargeLimit: int
+  - defaultDailyLimit: int = 80
+  - oneTimeFullCharge: boolean
+}
+
+class ChargingSession {
+  - sessionId: UUID
+  - startTime: DateTime
+  - endTime: DateTime
+  - currentSoC: int
+  - estimatedTimeToCompletion: Duration
+  - currentRateKW: float
+  - suppliedVoltage: float
+  - suppliedAmperage: float
+  - state: ChargingSessionState
+}
+
+class ChargingSchedule {
+  - scheduleId: UUID
+  - startTime: Time
+  - readyByTime: Time
+  - isActive: boolean
+}
+
+class ChargingStation {
+  - stationId: UUID
+  - location: Coordinates
+  - networkOperator: String
+  - isAvailable: boolean
+  + supportedConnectors: List<ConnectorType>
+  + maxPowerLevelKW: PowerLevel
+}
+
+' Value Objects
+class Coordinates {
+  + latitude: double
+  + longitude: double
+}
+
+class FilterCriteria {
+  + centerPoint: Coordinates
+  + searchRadiusMeters: int
+  + connectorTypes: List<ConnectorType>
+  + minPowerLevel: PowerLevel
+}
+
+' Data Transfer Objects
+class ChargingStatusDTO {
+  + currentSoC: int
+  + estimatedTimeToCompletion: Duration
+  + currentChargingRateKW: float
+  + suppliedVoltage: float
+  + suppliedAmperage: float
+}
+
+class ScheduleDTO {
+  + startTime: Time
+  + readyByTime: Time
+  + isActive: boolean
+}
+
+' Enumerations
+enum ChargingSessionState {
+  INITIALIZED
+  AUTHENTICATING
+  CHARGING
+  PAUSED
+  COMPLETED
+  FAULTED
+}
+
+enum ConnectorType {
+  TYPE_1
+  TYPE_2
+  CCS
+  CHADEMO
+  TESLA_NACS
+}
+
+enum PowerLevel {
+  LEVEL_1_AC
+  LEVEL_2_AC
+  DC_FAST_50KW
+  DC_FAST_150KW
+  DC_FAST_350KW
+}
+
+
+' Relationships
+User ..> ChargingManager
+User "1" o-- "1..*" Vehicle
+
+ChargingManager "1" *-- "1" ChargingStationFinder
+ChargingManager ..> Vehicle
+ChargingManager ..> ChargingSession
+ChargingManager ..> ChargingSchedule
+ChargingManager ..> FilterCriteria
+ChargingManager ..> ChargingStatusDTO
+ChargingManager ..> ScheduleDTO
+
+ChargingStationFinder ..> ChargingStation
+ChargingStationFinder ..> FilterCriteria
+
+Vehicle "1" *-- "1" ChargingSettings
+Vehicle "1" o-- "0..*" ChargingSession
+Vehicle "1" *-- "0..*" ChargingSchedule
+
+ChargingStation "1" o-- "0..*" ChargingSession
+ChargingStation "1" *-- "1" Coordinates
+
+ChargingSession *-- ChargingSessionState
+
+@enduml

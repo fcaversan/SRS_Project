@@ -1,0 +1,48 @@
+@startuml
+!theme spacelab
+
+start
+
+:User initiates remote control action;
+
+switch (Selected Remote Command?)
+case (Lock / Unlock Doors)
+    :Send Lock or Unlock command to vehicle;
+    :Receive success confirmation from vehicle;
+    :Provide haptic feedback on mobile device;
+
+case (Climate Control)
+    :User selects climate action\n(HVAC, Temp, Heated Seats/Wheel, Defrosters);
+    if (Is vehicle plugged in?) then (no)
+        :Display warning: "Action will consume battery range";
+        if (User confirms to proceed?) then (yes)
+            :Send climate preconditioning command to vehicle;
+            :Receive command confirmation;
+            :Display updated climate status on app;
+        else (no)
+            :Cancel climate action;
+        endif
+    else (yes)
+        :Send climate preconditioning command to vehicle;
+        :Receive command confirmation;
+        :Display updated climate status on app;
+    endif
+
+case (Open Trunk)
+    :User selects Front or Rear Trunk;
+    :Send selected Open Trunk command to vehicle;
+    :Receive command confirmation;
+    :Display updated trunk status on app;
+
+case (Honk Horn & Flash Lights)
+    :Send Honk & Flash command to vehicle;
+    :Receive command confirmation;
+    :Display command sent confirmation on app;
+
+endswitch
+
+:End remote control session;
+
+stop
+
+@enduml

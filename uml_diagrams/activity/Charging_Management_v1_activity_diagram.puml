@@ -1,0 +1,77 @@
+@startuml
+'Created by a senior software architect for Charging Management.
+'This diagram adheres to modern PlantUML syntax requirements.
+
+start
+
+:Access Charging Management Feature;
+
+if (User selects 'Remote Control'?) then (yes)
+    if (Is a charging session active?) then (yes)
+        :Stop charging session;
+    else (no)
+        if (Vehicle is plugged into a compatible charger?) then (yes)
+            :Start charging session;
+        else (no)
+            :Display error: "Vehicle not plugged in or charger incompatible";
+        endif
+    endif
+
+else if (User selects 'View Active Session'?) then (yes)
+    if (Charging session is active?) then (yes)
+        :Display current SoC;
+        :Display estimated time to completion;
+        :Display current charging rate (kW);
+        :Display supplied voltage/amperage;
+    else (no)
+        :Display "No active charging session";
+    endif
+
+else if (User selects 'Manage Settings'?) then (yes)
+    partition "Charging Settings" {
+        if (Select 'Set Charge Limit'?) then (yes)
+            :Display interface with default 80% limit;
+            if (User selects 'Charge to 100% for trip'?) then (yes)
+                :Set a one-time charge limit to 100%;
+            else (no)
+                :Allow user to set a new maximum percentage;
+                :Save new charge limit;
+            endif
+        else if (Select 'Manage Schedules'?) then (yes)
+            switch (User Action?)
+            case (Create Schedule)
+                :Define start time or desired ready-by time;
+                :Save new schedule;
+            case (Edit Schedule)
+                :Select an existing schedule;
+                :Modify schedule details;
+                :Save updated schedule;
+            case (Delete Schedule)
+                :Select an existing schedule;
+                :Confirm deletion;
+                :Delete selected schedule;
+            endswitch
+        endif
+    }
+
+else if (User selects 'Find Stations'?) then (yes)
+    partition "Charging Station Finder" {
+        :Display map of charging stations;
+        if (User applies filters?) then (yes)
+            :Allow user to filter by connector type and power level (kW);
+            :Update map with filtered results;
+        endif
+        -> For each station shown;
+        if (Real-time availability data is provided?) then (yes)
+          :Display real-time availability status;
+        else (no)
+          :Display 'Availability Unknown';
+        endif
+    }
+endif
+
+:Return to Charging Management main screen;
+
+stop
+
+@enduml

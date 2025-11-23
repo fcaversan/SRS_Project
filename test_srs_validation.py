@@ -48,9 +48,10 @@ def test_srs_validation():
         print("=" * 60)
         
         # Check if validation report was created
-        if os.path.exists("SRSVR_v1.txt"):
-            file_size = os.path.getsize("SRSVR_v1.txt")
-            print(f"✓ SRSVR_v1.txt - {file_size} bytes")
+        report_path = os.path.join("reports", "SRSVR_v1.txt")
+        if os.path.exists(report_path):
+            file_size = os.path.getsize(report_path)
+            print(f"✓ {report_path} - {file_size} bytes")
             
             # Extract and display error count
             error_count = automator.extract_error_count(validation_report)
@@ -63,7 +64,7 @@ def test_srs_validation():
             else:
                 print("⚠️  Could not extract error count")
         else:
-            print("✗ SRSVR_v1.txt - Not created")
+            print("✗ reports/SRSVR_v1.txt - Not created")
             return False
         
         print()

@@ -44,7 +44,7 @@ class GeminiAutomation:
             genai.configure(api_key=self.api_key)
             
             # Initialize the Gemini 2.5 Pro model
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model = genai.GenerativeModel('gemini-2.5-pro')
             print("Gemini 2.5 Pro model initialized successfully!")
             
         except Exception as e:
@@ -273,15 +273,22 @@ Generate the SRS Validation Report now:
             filename (str): Name of the validation report file to save to
         """
         try:
+            # Create reports directory if it doesn't exist
+            reports_dir = "reports"
+            os.makedirs(reports_dir, exist_ok=True)
+            
+            # Construct full path
+            report_path = os.path.join(reports_dir, filename)
+            
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            with open(filename, "w", encoding="utf-8") as file:
+            with open(report_path, "w", encoding="utf-8") as file:
                 file.write(f"SRS Validation Report (SRSVR)\n")
                 file.write(f"Generated on: {timestamp}\n")
                 file.write(f"{'='*80}\n\n")
                 file.write(validation_report)
             
-            print(f"SRS Validation Report saved to {filename}")
+            print(f"SRS Validation Report saved to {report_path}")
             
         except Exception as e:
             raise Exception(f"Failed to save validation report to file: {e}")
@@ -795,11 +802,11 @@ Security & Privacy:
                 # Determine previous validation file for context
                 previous_srsvr = None
                 if current_version > 1:
-                    previous_srsvr = f"SRSVR_v{current_version-1}.txt"
+                    previous_srsvr = os.path.join("reports", f"SRSVR_v{current_version-1}.txt")
                 
                 reviewed_srs = self.run_srs_review(
                     srs_file_path=srs_file,
-                    validation_report_path=srsvr_file,
+                    validation_report_path=os.path.join("reports", srsvr_file),
                     output_file=next_srs_file
                 )
                 
@@ -820,7 +827,7 @@ Security & Privacy:
                 'iterations_completed': current_version,
                 'target_reached': current_errors <= target_errors,
                 'final_srs_file': f"SRS_v{current_version}.txt",
-                'final_srsvr_file': f"SRSVR_v{current_version}.txt"
+                'final_srsvr_file': os.path.join("reports", f"SRSVR_v{current_version}.txt")
             }
             
             print(f"📄 Final SRS Version: {final_results['final_srs_file']}")

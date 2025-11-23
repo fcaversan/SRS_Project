@@ -1,0 +1,181 @@
+@startuml
+!theme spacelab
+title Iteration 4: Architecturally Refined Remote Control Activity Diagram
+
+partition "User (Mobile App)" {
+    start
+    :User selects remote command;
+}
+
+partition "System (Cloud Backend)" {
+    :Authenticate User and Authorize Command;
+    note left
+        **Improvement (QA Rec #1):**
+        Security handshake is a critical
+        non-functional requirement.
+    end note
+    if (Authorization successful?) then (yes)
+        ' Proceed to command switch
+    else (no)
+        -> Handle Authorization Failure;
+        stop
+    endif
+
+    switch (Selected Remote Command?)
+    case (Lock / Unlock Doors)
+        :Send Lock/Unlock command;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Lock/Unlock Success;
+            else (no)
+                -> Handle Generic Command Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            -> Handle Command Timeout;
+        end fork
+
+    case (Climate Preconditioning)
+        :User configures Climate Settings;
+        note left
+            **Improvement (QA Rec #4):**
+            User actions refined to reflect a more
+            type-safe model, e.g., setting a
+            'HeatingLevel' enum (Off, Low, High)
+            for seats instead of a generic value.
+        end note
+        :Request Power Source Status;
+        if (Vehicle is plugged in?) then (yes)
+            ' Proceed directly
+        else (no)
+            :Display battery consumption warning to User;
+            if (User confirms to proceed?) then (yes)
+                ' Proceed to send command
+            else (no)
+                :Cancel climate action;
+                stop
+            endif
+        endif
+        :Send climate command with settings;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Climate Success;
+            else (no)
+                -> Handle Generic Command Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            -> Handle Command Timeout;
+        end fork
+
+    case (Open Trunk / Frunk)
+        :User selects Front or Rear Trunk;
+        :Request Vehicle State;
+        if (Vehicle state is PARKED?) then (yes)
+             note right
+                **Improvement (QA Rec #1):**
+                Guard condition is now based on an
+                explicit state query to a formal
+                Vehicle State Machine.
+             end note
+            :Send Open Trunk command;
+            fork
+                :Await response from Vehicle;
+                if (Response is Success?) then (yes)
+                    -> Handle Trunk Success;
+                else (no)
+                    -> Handle Generic Command Failure;
+                endif
+            fork again
+                :Wait for Timeout;
+                -> Handle Command Timeout;
+            end fork
+        else (no)
+            -> Handle Vehicle Not Stationary;
+        endif
+
+    case (Honk Horn & Flash Lights)
+        :Send Honk & Flash command;
+        fork
+            :Await response from Vehicle;
+            if (Response is Success?) then (yes)
+                -> Handle Honk/Flash Success;
+            else (no)
+                -> Handle Generic Command Failure;
+            endif
+        fork again
+            :Wait for Timeout;
+            -> Handle Command Timeout;
+        end fork
+
+    endswitch
+}
+
+partition "Vehicle (Onboard ECU)" {
+    note
+        **Improvement (QA Rec #3):**
+        This new partition explicitly models
+        the vehicle component, clarifying the
+        system's architecture.
+    end note
+    split
+        :Receive Lock/Unlock command;
+        :Actuate door locks;
+        :Send Success/Failure Response;
+    split again
+        :Receive Power Status Request;
+        :Report Power Source (PluggedIn/Battery);
+    split again
+        :Receive Climate command;
+        :Activate HVAC system components;
+        :Send Success/Failure Response;
+    split again
+        :Receive Vehicle State Request;
+        :Report Current State (e.g., PARKED);
+    split again
+        :Receive Open Trunk command;
+        :Actuate trunk latch;
+        :Send Success/Failure Response;
+    split again
+        :Receive Honk & Flash command;
+        :Activate horn and exterior lights;
+        :Send Success/Failure Response;
+    end split
+    detach
+}
+
+
+partition "User (Mobile App)" {
+    split
+        :Handle Lock/Unlock Success;
+        :Provide haptic feedback;
+        :Display updated door status;
+    split again
+        :Handle Climate Success;
+        :Display updated climate status;
+    split again
+        :Handle Trunk Success;
+        :Display updated trunk status;
+    split again
+        :Handle Honk/Flash Success;
+        :Display "Command Sent" confirmation;
+    split again
+        :Handle Vehicle Not Stationary;
+        :Display Error: "Vehicle must be parked";
+    split again
+        :Handle Authorization Failure;
+        :Display "Authorization Failed" error;
+    split again
+        :Handle Generic Command Failure;
+        :Display "Command Failed. Vehicle did not respond as expected.";
+    split again
+        :Handle Command Timeout;
+        :Display "Request Timed Out. Please check connectivity.";
+    end split
+
+    :End remote session;
+    stop
+}
+@enduml

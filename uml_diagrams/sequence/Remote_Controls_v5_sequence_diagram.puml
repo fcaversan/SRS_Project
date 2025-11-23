@@ -1,0 +1,183 @@
+@startuml
+!theme plain
+
+title Remote_Controls_v5 Interactions (QA Feedback Applied)
+autonumber
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Auth Service" as AuthService
+participant "Remote Control System\n(Cloud API)" as API
+participant "Vehicle" as Vehicle
+database "DB" as DB
+
+skinparam sequence {
+    ParticipantBorderColor #555555
+    ParticipantBackgroundColor #EEEEEE
+    ArrowColor #333333
+    LifeLineBorderColor #AAAAAA
+}
+
+group Authentication & Authorization
+    User -> App: Enters Credentials and Taps "Login"
+    App -> AuthService: POST /auth/token {credentials}
+    activate AuthService
+    AuthService -> AuthService: Validate Credentials
+    AuthService --> App: 200 OK {authToken}
+    deactivate AuthService
+    App -> App: Store authToken securely
+end
+
+group Lock / Unlock Doors (FR-RMC-001, FR-RMC-002, FR-RMC-010)
+
+    User -> App: Taps "Lock"
+    App -> API: POST /vehicles/{id}/command/lock
+    note right of App: Includes `Authorization: Bearer {authToken}` header
+    activate API
+
+    API -> API: Authorize request
+    API ->> Vehicle: execute_lock()
+    API --> App: 202 Accepted (Command Queued)
+    deactivate API
+
+    alt Successful Execution
+        Vehicle --> API: PUSH command_status(SUCCESS)
+        activate API
+        note left of API: Maps internal `CommandResponse` to public notification
+        API -> DB: UPDATE vehicles SET is_locked = true
+        API ->> App: PUSH_NOTIFICATION(status: "locked")
+        deactivate API
+        App -> App: Provide Haptic Feedback (FR-RMC-010)
+        App --> User: Display "Vehicle Locked"
+
+    else Business Logic Failure (e.g., Door ajar)
+        Vehicle --> API: PUSH command_status(FAILURE, "door_ajar")
+        activate API
+        note left of API: Maps internal `CommandResponse` to public notification
+        API ->> App: PUSH_NOTIFICATION(status: "lock_failed", \nreason: "A door may be open.")
+        deactivate API
+        App --> User: Display "Lock Failed: A door may be open."
+
+    else Network Timeout
+        activate API
+        API -> API: Timeout waiting for vehicle response
+        API -> DB: UPDATE command_queue SET status = 'timeout'
+        API ->> App: PUSH_NOTIFICATION(status: "command_timeout", \nreason: "Vehicle is unresponsive.")
+        deactivate API
+        App --> User: Display "Command Failed: Vehicle is offline."
+    end
+end
+
+group Climate Preconditioning (FR-RMC-003 to FR-RMC-007)
+
+    User -> App: Taps "Start Climate" \n(configures settings)
+    App -> API: GET /vehicles/{id}/state
+    activate API
+    API -> DB: SELECT is_plugged_in, battery_level FROM vehicles
+    DB --> API: is_plugged_in: false, battery_level: 35%
+    API --> App: 200 OK {state}
+    deactivate API
+
+    opt FR-RMC-007: Vehicle is not plugged in
+        App --> User: Display Warning: "Vehicle not plugged in.\nThis will consume battery range. Continue?"
+        User -> App: Confirms "Continue"
+    end
+
+    App -> API: POST /vehicles/{id}/command/precondition \n{climate_settings}
+    activate API
+    note left of API
+      {
+        "target_temp": 21,
+        "heated_elements": {
+          "seats_front": "HIGH",
+          "steering_wheel": "ON" // User has requested this
+        },
+        "defrosters": { "front": "ON" }
+      }
+    endnote
+
+    alt Business Logic Validation
+        API -> DB: SELECT features, battery_level FROM vehicles
+        DB --> API: {features: ["heated_seats"], battery_level: 35%}
+        API -> API: Validate command parameters & state
+
+        alt Valid Command (Sufficient Battery & Features Equipped)
+            API ->> Vehicle: execute_precondition(climate_settings)
+            API --> App: 202 Accepted
+            deactivate API
+
+            Vehicle --> API: PUSH command_status(SUCCESS, hvac_status: "on")
+            activate API
+            API -> DB: UPDATE vehicles SET hvac_status = 'on', ...
+            API ->> App: PUSH_NOTIFICATION(status: "climate_on")
+            deactivate API
+            App --> User: Display "Climate Control Activated"
+
+        else Invalid Parameters (Feature Not Equipped) - QA Rec #3
+            API --> App: 422 Unprocessable Entity \n{error: "feature_not_equipped", feature: "heated_steering_wheel"}
+            deactivate API
+            App --> User: Display "Failed: Heated steering wheel\n is not available on this vehicle."
+        
+        else Insufficient Resources (Critically Low Battery)
+            API --> App: 409 Conflict {error: "critically_low_battery"}
+            deactivate API
+            App --> User: Display "Command Failed:\nBattery is critically low."
+        end
+    end
+end
+
+group Open Trunk / Frunk (FR-RMC-008)
+
+    User -> App: Taps "Open Frunk"
+    App -> API: POST /vehicles/{id}/command/open_frunk
+    activate API
+    
+    note right of API: Validate against Vehicle State Machine: \n'open_frunk' command requires 'PARKED' state. (QA Rec #1)
+    API -> DB: SELECT vehicle_state FROM vehicles WHERE id={id}
+    DB --> API: {vehicle_state: "PARKED"}
+    API -> API: Validate Pre-condition (state == 'PARKED')
+
+    alt Pre-condition Met (Vehicle is PARKED)
+        API ->> Vehicle: execute_open_frunk()
+        API --> App: 202 Accepted
+        deactivate API
+
+        Vehicle --> API: PUSH command_status(SUCCESS, frunk_open: true)
+        activate API
+        API -> DB: UPDATE vehicles SET frunk_open = true
+        API ->> App: PUSH_NOTIFICATION(status: "frunk_open")
+        deactivate API
+        App --> User: Display "Frunk is Open"
+
+    else Pre-condition Failed (Vehicle not PARKED)
+        API --> App: 400 Bad Request {error: "vehicle_in_motion"}
+        deactivate API
+        App --> User: Display "Cannot open while vehicle is in motion."
+    end
+end
+
+group Honk Horn / Flash Lights (FR-RMC-009)
+
+    User -> App: Taps "Honk & Flash"
+    App -> API: POST /vehicles/{id}/command/honk_flash
+    activate API
+
+    alt Successful Command
+        API ->> Vehicle: execute_honk_flash()
+        API --> App: 202 Accepted
+        deactivate API
+
+        Vehicle --> API: PUSH command_status(SUCCESS)
+        activate API
+        note left of API: Maps internal `CommandResponse` to public notification (QA Rec #4)
+        API ->> App: PUSH_NOTIFICATION(status: "honk_flash_activated")
+        deactivate API
+        App --> User: Display "Horn & Lights Activated"
+
+    else API / Vehicle Communication Error
+        API --> App: 503 Service Unavailable
+        deactivate API
+        App --> User: Display "Command Failed. Cannot reach vehicle."
+    end
+end
+@enduml

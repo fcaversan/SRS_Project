@@ -1,0 +1,111 @@
+@startuml
+' v6.0 - Improved based on Iteration 5 QA Feedback
+!theme materia
+
+title Home_Screen_Vehicle_Status_v6 Interactions (Addressing QA Feedback)
+
+skinparam note {
+    BackgroundColor #LightYellow
+    BorderColor #orange
+}
+skinparam sequence {
+    GroupBorderColor #4285F4
+    GroupFontColor #4285F4
+}
+
+autonumber "0."
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Vehicle API" as API
+participant "Data Store" as DB
+participant "Vehicle (TCU)" as TCU
+
+User -> App: Opens application / Navigates to Home Screen
+activate App
+
+App -> App: getUserPreferences()
+note left: Retrieve locally stored user preferences,\nsuch as preferred units for distance and temperature.
+
+App -> API: GET /v2/vehicle/{id}/status
+note left: Request includes headers for user preferences\n(e.g., Accept-Unit: imperial) to guide API response formatting.
+activate API
+note right of API: Unified endpoint aggregates all data for the Home Screen.\nEndpoint URL is consistent across all diagrams.
+
+API -> DB: getVehicleState(vehicleId)
+activate DB
+DB --> API: cachedVehicleState, timestamp
+deactivate DB
+
+opt Data is stale (e.g., timestamp > 5 minutes ago)
+    group Live Data Refresh Attempt
+        API -> TCU: requestTelemetryUpdate()
+        activate TCU
+        alt Vehicle is Online and Responds
+            TCU --> API: liveTelemetryData
+            deactivate TCU
+            API -> DB: persistVehicleState(vehicleId, liveTelemetryData)
+            note right of API: Persist fresh data and update cache timestamp.
+            API -> API: cachedVehicleState = liveTelemetryData
+        else Vehicle is Offline or Unresponsive
+            TCU --> API: Error: Timeout
+            deactivate TCU
+            note right of API: Vehicle is unreachable. Proceeding with stale data.
+        end
+    end
+end
+
+note over API
+**Architectural Decision (FR-HSS-004):**
+Estimated range calculation is performed by the backend API.
+This ensures a consistent calculation model across all clients
+and allows for future enhancements without app updates.
+end note
+API -> API: calculateEstimatedRange(cachedVehicleState)
+API -> API: fetchVehicleAssetURL(cachedVehicleState.modelId)
+
+alt Successful Fetch (Fresh or Stale Data)
+    API --> App: 200 OK - VehicleStatusDTO\n{\n  "soc": 85,                             (FR-HSS-001)\n  "estimatedRange": "250 mi",              (FR-HSS-003, 004)\n  "lockStatus": "LOCKED",                  (FR-HSS-005)\n  "cabinTemperature": "72°F",            (FR-HSS-006)\n  "isClimateControlActive": false,         (FR-HSS-007)\n  "vehicleImageUrl": "https://.../asset.png", (FR-HSS-008)\n  "isStale": true,\n  "lastUpdatedTimestamp": "2023-10-27T09:45:00Z"\n}
+    deactivate API
+    note right of App
+    **DTO Design Note:**
+    Payload aligned with Class Diagram definitions.
+    - `estimatedRange` and `cabinTemperature` are pre-formatted
+      Strings, as the API handles unit conversion based on
+      user preferences sent in the request headers. This simplifies
+      client-side logic, addressing QA feedback on documenting DTO choices.
+    end note
+
+    group UI Rendering and Component Update
+        note left of App
+        **Improvement (from QA Feedback):**
+        The UI update logic is expanded to show how
+        different components consume the DTO, clarifying
+        the view-model interaction as requested.
+        end note
+        App -> App: updateStatusDisplay(dto)
+        note right: Updates text views for SoC, Range, Lock Status,\nCabin Temp, and Climate Status. (FR-HSS-001, 003, 005-007)
+        App -> App: renderBatteryVisual(dto.soc)
+        note right: Renders the graphical battery representation. (FR-HSS-002)
+        App -> App: loadVehicleImage(dto.vehicleImageUrl)
+        note right: Loads the vehicle graphic from the provided URL. (FR-HSS-008)
+    end
+
+    alt Data is stale (dto.isStale == true)
+        App -> App: showStaleDataWarning(dto.lastUpdatedTimestamp)
+        App --> User: Display last known status\nwith a banner: "Status last updated 15 minutes ago"
+    else Data is fresh (dto.isStale == false)
+        App --> User: Display current vehicle status
+    end
+
+else API or Network Failure
+    API --> App: 5xx Service Unavailable
+    deactivate API
+
+    App -> App: displayGenericError()
+    App --> User: Display error message:\n"Unable to fetch vehicle status. Please try again."
+end
+
+deactivate App
+
+@enduml

@@ -1,0 +1,93 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+' --- Main Application Components ---
+
+class HomeScreen {
+  + updateView(status: VehicleStatusDTO)
+}
+
+class HomeScreenPresenter {
+  + loadVehicleStatus()
+}
+
+class VehicleRepresentation {
+  - vehicleImage: Image
+  + render()
+}
+
+' --- Data and API Layer ---
+
+class VehicleAPIClient {
+  + fetchVehicleStatus(prefs: UserPreferences): VehicleStatusDTO
+}
+
+class VehicleStatusDTO <<DTO>> {
+  ' FR-HSS-001
+  + stateOfCharge: float
+  ' FR-HSS-003
+  + estimatedRange: String
+  ' FR-HSS-005
+  + lockStatus: LockStatus
+  ' FR-HSS-006
+  + cabinTemperature: float
+  ' FR-HSS-007
+  + isClimateControlActive: boolean
+  ' IMPROVED: Fulfills FR-HSS-008 per QA feedback
+  + vehicleImageUrl: String
+  ' IMPROVED: Added for consistency per QA feedback
+  + isStale: boolean
+  ' IMPROVED: Added for consistency per QA feedback
+  + lastUpdated: Timestamp
+}
+
+class UserPreferences {
+  - preferredDistanceUnit: DistanceUnit
+  ' IMPROVED: Added per QA feedback for temp units
+  - preferredTemperatureUnit: TemperatureUnit
+  + getPreferredDistanceUnit(): DistanceUnit
+  + getPreferredTemperatureUnit(): TemperatureUnit
+}
+
+' --- Data Types and Enums ---
+
+enum LockStatus {
+  LOCKED
+  UNLOCKED
+}
+
+' IMPROVED: Renamed from 'Unit' for clarity
+enum DistanceUnit {
+  MILES
+  KILOMETERS
+}
+
+' IMPROVED: Added per QA feedback
+enum TemperatureUnit {
+  CELSIUS
+  FAHRENHEIT
+}
+
+' IMPROVED: Added to represent timestamp data type
+class Timestamp <<DataType>>
+
+' --- Relationships ---
+
+HomeScreenPresenter "1" o-- "1" HomeScreen : controls
+HomeScreenPresenter ..> VehicleAPIClient : uses
+
+HomeScreen "1" *-- "1" VehicleRepresentation : composes
+HomeScreen ..> VehicleStatusDTO : displays
+
+VehicleAPIClient ..> UserPreferences : uses
+VehicleAPIClient ..> VehicleStatusDTO : creates
+
+VehicleStatusDTO --> "1" LockStatus
+VehicleStatusDTO ..> Timestamp
+
+UserPreferences --> "1" DistanceUnit
+UserPreferences --> "1" TemperatureUnit
+
+@enduml

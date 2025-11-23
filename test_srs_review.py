@@ -18,7 +18,7 @@ def test_srs_review():
         automator = GeminiAutomation()
         
         # Check if required files exist
-        required_files = ["SRS_v1.txt", "SRSVR_v1.txt"]
+        required_files = [\"SRS_v1.txt\", os.path.join(\"reports\", \"SRSVR_v1.txt\")]
         missing_files = []
         
         for file_name in required_files:
@@ -44,8 +44,8 @@ def test_srs_review():
         
         # Run the SRS review
         reviewed_srs = automator.run_srs_review(
-            srs_file_path="SRS_v1.txt",
-            validation_report_path="SRSVR_v1.txt"
+            srs_file_path=\"SRS_v1.txt\",
+            validation_report_path=os.path.join(\"reports\", \"SRSVR_v1.txt\")
         )
         
         print()

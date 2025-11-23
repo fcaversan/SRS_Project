@@ -1,0 +1,75 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+hide empty members
+
+' --- Classes representing the new, backend-centric architecture ---
+
+class HomeScreen {
+  + updateView(status: VehicleStatusDTO)
+}
+
+class HomeScreenPresenter {
+  + loadVehicleStatus()
+}
+
+class VehicleAPIClient {
+  + fetchVehicleStatus(prefs: UserPreferences): VehicleStatusDTO
+}
+
+class VehicleRepresentation {
+  - vehicleImage: Image
+  + render()
+}
+
+class VehicleStatusDTO <<DTO>> {
+  + stateOfCharge: float
+  + estimatedRange: String
+  + cabinTemperature: float
+  + isClimateControlActive: boolean
+  + lockStatus: LockStatus
+}
+
+class UserPreferences {
+  - preferredRangeUnit: Unit
+  + getPreferredUnit(): Unit
+}
+
+enum LockStatus {
+  LOCKED
+  UNLOCKED
+}
+
+enum Unit {
+  MILES
+  KILOMETERS
+}
+
+
+' --- Relationships ---
+
+' A Presenter controls the HomeScreen view.
+HomeScreenPresenter "1" o-- "1" HomeScreen : controls
+
+' The Presenter uses the API Client to fetch data.
+HomeScreenPresenter ..> VehicleAPIClient : uses
+
+' The HomeScreen is composed of a graphical representation of the vehicle.
+HomeScreen "1" *-- "1" VehicleRepresentation : composes
+
+' The HomeScreen receives a DTO from the Presenter to update its view.
+HomeScreen ..> VehicleStatusDTO : displays
+
+' The API Client uses UserPreferences to make the correct API call.
+VehicleAPIClient ..> UserPreferences : uses
+
+' The API Client is responsible for creating/returning the DTO.
+VehicleAPIClient ..> VehicleStatusDTO : creates
+
+' The DTO holds a reference to the LockStatus enum.
+VehicleStatusDTO --> "1" LockStatus
+
+' UserPreferences holds a reference to the Unit enum.
+UserPreferences --> "1" Unit
+
+@enduml

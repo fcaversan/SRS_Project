@@ -97,7 +97,19 @@ Analyze these artifacts for consistency and quality:
 Provide a comprehensive analysis and score the consistency from 1-10.
 Include specific recommendations for improvement.
 
-<consistency_score>[YOUR_SCORE]</consistency_score>
+**OUTPUT FORMAT:**
+Please provide your analysis in strict JSON format with the following structure:
+{{
+    "consistency_analysis": "Detailed analysis...",
+    "completeness_analysis": "Analysis...",
+    "quality_analysis": "Assessment...",
+    "gap_analysis": "Gaps...",
+    "consistency_score": 8,
+    "completeness_score": 9,
+    "quality_score": 8,
+    "overall_score": 8,
+    "recommendations": ["Rec 1", "Rec 2"]
+}}
 """
         
         print("📋 Sample requirement slices defined:")
@@ -105,41 +117,41 @@ Include specific recommendations for improvement.
             print(f"  {i}. {slice_info['name']}")
         print()
         
-        # Run the iterative design workflow
+        # Run the iterative design workflow manually for the test
         print("🚀 Starting iterative design workflow...")
-        results = uml_automation.run_iterative_design_workflow(
-            requirement_slices,
-            custom_validation_prompt
-        )
+        
+        all_results = []
+        for req_slice in requirement_slices:
+            print(f"\nProcessing slice: {req_slice['name']}")
+            result = uml_automation.generate_diagrams_from_requirements_slice(
+                req_slice['content'],
+                req_slice['name'],
+                custom_validation_prompt
+            )
+            all_results.append(result)
         
         # Display results summary
         print("\n" + "="*60)
         print("📊 WORKFLOW RESULTS SUMMARY")
         print("="*60)
         
-        summary = results.get('summary', {})
-        print(f"Total slices processed: {results.get('total_slices', 0)}")
-        print(f"Successful slices: {summary.get('successful_slices', 0)}")
-        print(f"Failed slices: {summary.get('failed_slices', 0)}")
-        print(f"Total diagrams generated: {summary.get('total_diagrams_generated', 0)}")
-        print(f"Average consistency score: {summary.get('average_consistency_score', -1):.1f}/10")
-        
-        if 'summary_report_path' in results:
-            print(f"📄 Summary report saved: {results['summary_report_path']}")
+        successful_slices = len([r for r in all_results if 'error' not in r])
+        print(f"Total slices processed: {len(all_results)}")
+        print(f"Successful slices: {successful_slices}")
         
         print("\n🔍 Individual slice results:")
-        for slice_name, result in results.get('slice_results', {}).items():
+        for result in all_results:
+            slice_name = result.get('slice_name', 'Unknown')
             if 'error' in result:
                 print(f"  ❌ {slice_name}: {result['error']}")
             else:
                 diagrams = result.get('diagrams', {})
                 successful_diagrams = len([d for d in diagrams.values() if 'error' not in d])
                 validation = result.get('validation', {})
-                score = validation.get('consistency_score', -1) if validation else -1
+                metrics = validation.get('metrics', {})
+                score = metrics.get('overall_score', -1)
                 
                 print(f"  ✅ {slice_name}: {successful_diagrams}/3 diagrams, score: {score}/10")
-                if 'report_path' in result:
-                    print(f"     Report: {result['report_path']}")
         
         print("\n🎉 Test completed successfully!")
         return True
@@ -184,11 +196,9 @@ def test_single_iteration():
         print(f"Diagrams generated: {len([d for d in result.get('diagrams', {}).values() if 'error' not in d])}/3")
         
         if 'validation' in result and result['validation']:
-            score = result['validation'].get('consistency_score', -1)
+            metrics = result['validation'].get('metrics', {})
+            score = metrics.get('overall_score', -1)
             print(f"Consistency score: {score}/10")
-        
-        if 'report_path' in result:
-            print(f"Report saved: {result['report_path']}")
         
         return True
         
@@ -213,13 +223,6 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     if success:
         print("🎉 All tests passed! Phase 2 iterative workflow is ready to use.")
-        print("\nNext steps:")
-        print("1. 📝 Customize requirement slices for your project")
-        print("2. 🎯 Fine-tune the validation prompt as needed")
-        print("3. 🔧 Adjust diagram generation parameters")
-        print("4. 📊 Review generated reports and diagrams")
     else:
         print("❌ Tests failed. Please check the configuration and try again.")
         sys.exit(1)
-    
-    print(f"\n✨ Phase 2 Design Agent is ready for production use! 🚀")

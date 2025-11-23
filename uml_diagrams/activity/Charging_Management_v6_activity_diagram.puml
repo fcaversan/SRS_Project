@@ -1,0 +1,192 @@
+@startuml
+'ITERATION 6: Refined based on QA Validation Feedback
+'Focus: Clarified state management logic, added detail on state transitions, and specified data sources.
+
+title Charging Management Workflow (Iteration 6)
+
+skinparam activity {
+    BackgroundColor #LightBlue
+    BorderColor #181818
+    ArrowColor #181818
+    AttributeFontColor #181818
+}
+skinparam partition {
+    BackgroundColor #AliceBlue
+}
+skinparam swimlane {
+    borderColor #333333
+    borderThickness 2
+}
+skinparam note {
+    BackgroundColor #LightYellow
+    BorderColor #A0A0A0
+}
+
+|User|
+start
+:Opens Charging Management screen;
+
+|Application Service|
+:Verify user authentication;
+if (User is authenticated?) then (yes)
+    repeat
+        :Fetch and aggregate data
+        (Vehicle State, Session Status, Settings);
+        |User|
+        :Display Charging Management dashboard;
+        switch (User Action)
+        case (Select 'Remote Control')
+            |Application Service|
+            :Fetch current Vehicle and Session states;
+            if (Session.state is 'CHARGING'?) then (yes)
+                -> Stop Charging;
+                |Application Service|
+                :Send 'Stop Charge' command;
+                |Vehicle Gateway|
+                :Relay command to vehicle;
+                if (Vehicle acknowledges stop?) then (yes)
+                    |Application Service|
+                    :Update Session.state: CHARGING -> STOPPED;
+                    |User|
+                    :Display 'Charging Stopped' confirmation;
+                else (no)
+                    |User|
+                    :Display error: "Failed to communicate with vehicle";
+                endif
+            else if (Vehicle.state is 'PLUGGED_IN' and
+            (Session.state is 'STOPPED' or 'COMPLETED' or 'NONE')?) then (yes)
+                -> Start Charging;
+                |Application Service|
+                :Send 'Start Charge' command;
+                note right
+                  The detailed lifecycle of a ChargingSession
+                  is formally defined in the associated
+                  State Machine Diagram.
+                end note
+                |Vehicle Gateway|
+                :Relay command to vehicle;
+                |Application Service|
+                :Update Session.state: -> INITIALIZING;
+                if (Vehicle handshake successful?) then (yes)
+                    :Update Session.state: -> AUTHENTICATING;
+                    if (Charger authentication successful?) then (yes)
+                       :Update Session.state: -> CHARGING;
+                       |User|
+                       :Display 'Charging Started' confirmation;
+                    else (no)
+                       :Update Session.state: -> FAULTED;
+                       |User|
+                       :Display error: "Charger authentication failed.";
+                    endif
+                else (no)
+                    :Update Session.state: -> FAULTED;
+                    |User|
+                    :Display error: "Failed to start charging. Check connection.";
+                endif
+            else (not ready)
+                |User|
+                :Display "Vehicle not ready to charge
+(e.g., unplugged, session faulted)";
+            endif
+
+        case (Select 'View Active Session')
+            |Application Service|
+            if (Session.state is 'CHARGING'?) then (yes)
+                :Fetch latest session data;
+                |User|
+                :Display Session Status
+(State, SoC, ETA, Rate, Voltage/Amperage);
+            else (no)
+                |User|
+                :Display "No active charging session";
+            endif
+
+        case (Select 'Manage Settings')
+            partition "Settings Management" {
+                |User|
+                if (Select 'Set Charge Limit') then (yes)
+                    :Display interface with default 80% limit;
+                    if (User selects 'Charge to 100% for trip'?) then (yes)
+                        |Application Service|
+                        :Set one-time charge limit to 100%;
+                    else (no)
+                        |User|
+                        :Set a new maximum percentage;
+                        |Application Service|
+                        :Save new permanent charge limit;
+                    endif
+                    |User|
+                    :Display 'Limit updated' confirmation;
+                else if (Select 'Manage Schedules') then (yes)
+                    |User|
+                    switch (Schedule Action)
+                    case (Create New)
+                        :Define start/ready-by time;
+                        |Application Service|
+                        :Save new schedule;
+                        |User|
+                        :Display 'Schedule created' confirmation;
+                    case (Edit Existing)
+                        :Select and modify schedule;
+                        |Application Service|
+                        :Save updated schedule;
+                        |User|
+                        :Display 'Schedule updated' confirmation;
+                    case (Delete Existing)
+                        :Select schedule and confirm deletion;
+                        |Application Service|
+                        :Delete selected schedule;
+                        |User|
+                        :Display 'Schedule deleted' confirmation;
+                    endswitch
+                endif
+            }
+        case (Select 'Find Stations')
+            partition "Charging Station Finder" {
+                |Application Service|
+                :Request station data;
+                |Data Services|
+                :Provide station data;
+                note right on |Data Services|
+                  Data sourced from internal cache, refreshed
+                  periodically from 3rd-party network operator APIs
+                  to ensure data freshness (FR-CHG-008).
+                end note
+                |Application Service|
+                if (Data service responds?) then (yes)
+                    |User|
+                    :Display map of charging stations;
+                    if (User applies filters?) then (yes)
+                        |Application Service|
+                        :Re-fetch data with filters
+(connector type & power level);
+                        |User|
+                        :Update map with filtered results;
+                    endif
+                    fork
+                        |Application Service|
+                        :For each visible station, fetch real-time availability;
+                        |Data Services|
+                        :Provide real-time availability data;
+                    fork again
+                        |User|
+                        :Display status (e.g., 'Available', 'In Use')
+and data freshness on map pins;
+                    end fork
+                else (no)
+                    |User|
+                    :Display error: "Charging station service is unavailable";
+                endif
+            }
+        case (User Exits)
+            break
+        endswitch
+    repeat while () is ()
+else (no)
+    |User|
+    :Display "Authentication required";
+    stop
+endif
+|User|
+stop
+@enduml

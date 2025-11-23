@@ -1,0 +1,94 @@
+@startuml
+' v5.0 - Improved based on Iteration 4 QA Feedback
+!theme materia
+
+title Home_Screen_Vehicle_Status_v5 Interactions (QA Improved)
+
+skinparam note {
+    BackgroundColor #LightYellow
+    BorderColor #orange
+}
+
+autonumber "0."
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Vehicle API" as API
+participant "Data Store" as DB
+participant "Vehicle (TCU)" as TCU
+
+User -> App: Opens application / Navigates to Home Screen
+activate App
+
+App -> App: getUserPreferences()
+note left: Retrieve locally stored user preferences,\nsuch as preferred units for distance and temperature.
+
+App -> API: GET /v2/vehicle/{id}/status
+note left: Request includes headers for user preferences\n(e.g., Accept-Unit: imperial) to guide API response formatting.
+activate API
+note right of API: Unified endpoint aggregates all data for the Home Screen.\nEndpoint URL is now consistent across all diagrams.
+
+API -> DB: getVehicleState(vehicleId)
+activate DB
+DB --> API: cachedVehicleState, timestamp
+deactivate DB
+
+opt Data is stale (e.g., timestamp > 5 minutes ago)
+    group Live Data Refresh Attempt
+        API -> TCU: requestTelemetryUpdate()
+        activate TCU
+        alt Vehicle is Online and Responds
+            TCU --> API: liveTelemetryData
+            deactivate TCU
+            API -> DB: persistVehicleState(vehicleId, liveTelemetryData)
+            note right of API: Persist fresh data and update cache timestamp.
+            API -> API: cachedVehicleState = liveTelemetryData
+        else Vehicle is Offline or Unresponsive
+            TCU --> API: Error: Timeout
+            deactivate TCU
+            note right of API: Vehicle is unreachable. Proceeding with stale data.
+        end
+    end
+end
+
+note over API
+**Architectural Decision (FR-HSS-004):**
+Estimated range calculation is performed by the backend API.
+This ensures a consistent calculation model across all clients
+and allows for future enhancements without app updates.
+end note
+API -> API: calculateEstimatedRange(cachedVehicleState)
+API -> API: fetchVehicleAssetURL(cachedVehicleState.modelId)
+
+alt Successful Fetch (Fresh or Stale Data)
+    API --> App: 200 OK - VehicleStatusDTO\n{\n  "soc": 85,                             (FR-HSS-001)\n  "estimatedRange": "250 mi",              (FR-HSS-003, 004)\n  "lockStatus": "LOCKED",                  (FR-HSS-005)\n  "cabinTemperature": "72°F",            (FR-HSS-006)\n  "isClimateControlActive": false,         (FR-HSS-007)\n  "vehicleImageUrl": "https://.../asset.png", (FR-HSS-008)\n  "isStale": false,\n  "lastUpdatedTimestamp": "2023-10-27T10:00:00Z"\n}
+    deactivate API
+    note right of App
+    **DTO Design Note:**
+    Payload aligned with Class Diagram definitions.
+    - `lockStatus` uses an Enum-like string ("LOCKED").
+    - `estimatedRange` and `cabinTemperature` are
+      pre-formatted strings as the API handles
+      unit conversion based on user preferences.
+    end note
+
+    App -> App: updateView(vehicleStatusDTO)
+
+    alt Data is fresh (dto.isStale == false)
+        App --> User: Display current vehicle status:\n- SoC & Visual Battery (FR-HSS-001, 002)\n- Estimated Range (FR-HSS-003)\n- Lock, Cabin Temp, Climate Status (FR-HSS-005, 006, 007)\n- Vehicle Graphic via URL (FR-HSS-008)
+    else Data is stale (dto.isStale == true)
+        App -> App: showStaleDataWarning()
+        App --> User: Display last known status\nwith a banner: "Status last updated 15 minutes ago"
+    end
+
+else API or Network Failure
+    API --> App: 5xx Service Unavailable
+    deactivate API
+
+    App -> App: displayGenericError()
+    App --> User: Display error message:\n"Unable to fetch vehicle status. Please try again."
+end
+
+deactivate App
+
+@enduml

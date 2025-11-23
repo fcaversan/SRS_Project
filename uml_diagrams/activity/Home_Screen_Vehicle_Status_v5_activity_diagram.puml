@@ -1,0 +1,78 @@
+@startuml
+title Home Screen Data Loading Activity Diagram (Iteration 5)
+|Client App|
+start
+:User navigates to Home Screen;
+:Show loading state (e.g., spinner);
+:Fetch User Preferences (e.g., preferred unit for range);
+:Request vehicle status from backend
+(GET /v2/vehicle/{id}/status with preferences);
+
+|#Technology|Backend API|
+:Receive request;
+:Authenticate user & identify vehicle;
+if (Authentication failed?) then (yes)
+  :Return 401 Unauthorized;
+  -->|Client App|
+  :Display "Authentication error" message;
+  stop
+endif
+
+note right: Parallel data fetching from vehicle data sources/cache
+fork
+  :Fetch Battery Data
+  (SoC, recent consumption);
+fork again
+  :Fetch Environment Data
+  (ambient temperature);
+fork again
+  :Fetch Vehicle State Data
+  (lock status, cabin temp, climate active);
+fork again
+  :Fetch Vehicle Visual Asset Identifier;
+end fork
+
+:Calculate Estimated Range
+(based on SoC, consumption, temp & user's preferred unit);
+note left
+  Architectural Decision: Range calculation logic (FR-HSS-004)
+  is centralized on the backend to ensure consistency
+  across all clients and platforms.
+end note
+
+:Assemble `VehicleStatusDTO`;
+:Send 200 OK Response with `VehicleStatusDTO`;
+
+|Client App|
+:Receive API Response;
+if (Response is 200 OK?) then (yes)
+  :Hide loading state;
+  :Parse `VehicleStatusDTO`;
+  :Update View Model with DTO data;
+  note right: UI components are updated in parallel from the View Model
+  fork
+    'Battery and Range UI
+    :Display SoC & pre-calculated Range
+    (FR-HSS-001, FR-HSS-003);
+    :Update visual battery level
+    (FR-HSS-002);
+
+  fork again
+    'Security and Climate UI
+    :Display Lock, Temperature & Climate status
+    (FR-HSS-005, FR-HSS-006, FR-HSS-007);
+
+  fork again
+    'Vehicle Visual UI
+    :Load vehicle graphical asset
+    (FR-HSS-008);
+  end fork
+  :Render fully updated Home Screen;
+
+else (no / API error)
+  :Hide loading state;
+  :Display appropriate error message
+  (e.g., "Could not connect to vehicle");
+endif
+stop
+@enduml
