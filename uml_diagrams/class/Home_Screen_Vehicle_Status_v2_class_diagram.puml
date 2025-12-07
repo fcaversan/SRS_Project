@@ -2,140 +2,138 @@
 
 skinparam classAttributeIconSize 0
 hide empty members
-skinparam linetype ortho
 
-' =========================================================
-' Interfaces and Data Sources
-' =========================================================
-interface IVehicleAPI <<Service>> {
-  + fetchVehicleStatus(prefs: UserPreferences): Vehicle
-}
-
-note right of IVehicleAPI
-  Represents the contract with the backend API.
-  The range calculation (FR-HSS-004) is performed
-  by the service implementing this interface,
-  resolving the architectural inconsistency.
-end note
-
-' =========================================================
-' UI and Presentation Layer
-' =========================================================
-class HomeScreen {
-  - vehicleApi: IVehicleAPI
-  + refreshData()
-}
-
-class VehicleRepresentation {
-  - vehicleImage: Image
-  + render(vehicle: Vehicle)
-}
-
-' =========================================================
-' Domain Model (Client-Side)
-' =========================================================
-class Vehicle <<Facade>> {
-  - lockStatus: LockStatus
-  - connectionStatus: ConnectionStatus
-  - lastUpdated: Timestamp
-  + getLockStatus(): LockStatus
-  + getCabinTemperature(): float
-  + isClimateControlActive(): boolean
-  + getCurrentSoC(): float
-  + getEstimatedRange(): Range
-  + getConnectionStatus(): ConnectionStatus
-  + getLastUpdated(): Timestamp
-}
-
-note top on link (Vehicle, ClimateControlSystem)
-  <<delegates>>
-end note
-note top on link (Vehicle, Battery)
-  <<delegates>>
-end note
-note right of Vehicle
-  The Vehicle class now acts as a pure data holder and Façade.
-  Raw data for range calculation (e.g., ambient temperature)
-  is no longer stored on the client. It receives a pre-calculated
-  'Range' object from the API.
-  It also models connection status and data freshness.
-end note
-
-
-class Battery {
-  - stateOfCharge: float
-  + getSoC(): float
-}
-
-class ClimateControlSystem {
-  - isActive: boolean
-  - interiorTemperature: float
-  + isActive(): boolean
-  + getTemperature(): float
-}
-
-class Range {
-  - value: float
-  - unit: Unit
-  + getValue(): float
-  + getUnit(): Unit
-}
-
-class UserPreferences {
-  - preferredRangeUnit: Unit
-  + getPreferredUnit(): Unit
-}
-
-' =========================================================
-' Enumerations
-' =========================================================
+' =============================================
+' Enums (Scoped to Home Screen needs)
+' =============================================
 enum LockStatus {
   LOCKED
   UNLOCKED
 }
 
-enum Unit {
-  MILES
-  KILOMETERS
+enum UnitSystem {
+  METRIC {distance: km}
+  IMPERIAL {distance: mi}
 }
 
-enum ConnectionStatus {
-  ONLINE
-  OFFLINE
-  STALE_DATA
+enum TempUnit {
+  CELSIUS
+  FAHRENHEIT
 }
 
-' =========================================================
+' =============================================
+' Application Layer
+' =============================================
+package "Application" {
+
+  class VehicleConnectApp {
+    +main(): void
+    +displayHomeScreen(): void
+    +refreshVehicleStatus(): void
+  }
+
+  class User {
+    -userId: UUID
+    +getProfile(): UserProfile
+  }
+
+  class UserProfile {
+    -distanceUnit: UnitSystem
+    -temperatureUnit: TempUnit
+    +getDistanceUnit(): UnitSystem
+    +getTemperatureUnit(): TempUnit
+  }
+  
+  class HomeScreenPresenter {
+    +displayStateOfCharge: string
+    +displayRange: string
+    +displayLockStatus: LockStatus
+    +displayCabinTemperature: string
+    +isClimateActive: boolean
+    +lastUpdatedTimestamp: string
+    +updateView(status: VehicleStatus, profile: UserProfile): void
+    +onRefreshRequested(): void
+  }
+
+}
+
+' =============================================
+' Vehicle Domain (Scoped to Home Screen needs)
+' =============================================
+package "Vehicle Domain" {
+
+  class Vehicle {
+    -vin: string
+    -modelName: string
+    -imageUrl: string
+    +lock(): void
+    +unlock(): void
+  }
+
+  class VehicleStatus {
+    +stateOfCharge: float
+    +estimatedRangeKm: float
+    +lockStatus: LockStatus
+    +cabinTemperatureCelsius: float
+    +isClimateActive: boolean
+    +lastUpdated: datetime
+    +rangeCalculationBasis: RangeCalculationInput
+  }
+  
+  class RangeCalculationInput {
+    +recentEnergyConsumptionTrend: float
+    +ambientTemperatureCelsius: float
+  }
+
+}
+
+' =============================================
+' External Interfaces
+' =============================================
+package "External Interfaces" {
+  interface VehicleBackendAPI {
+    +fetchVehicleStatus(vin: string): VehicleStatus
+    +sendLockCommand(vin: string): boolean
+    +sendUnlockCommand(vin: string): boolean
+  }
+  
+  interface OSService {
+    +showPushNotification(message: string): void
+    +provideHapticFeedback(): void
+  }
+}
+
+
+' =============================================
 ' Relationships
-' =========================================================
+' =============================================
 
-' --- Application Architecture ---
-' HomeScreen uses the API to fetch vehicle data.
-HomeScreen "1" ..> "1" IVehicleAPI : uses
-' The API returns a Vehicle object.
-IVehicleAPI ..> Vehicle : creates
+' --- Application Composition ---
+VehicleConnectApp "1" *-- "1" HomeScreenPresenter : manages
+VehicleConnectApp "1" o-- "1" User : (current session for)
+User "1" *-- "1" UserProfile : manages
 
-' --- UI Composition and Data Display ---
-' HomeScreen displays the state of one Vehicle.
-HomeScreen "1" o-- "1" Vehicle : displays
-' HomeScreen is composed of a graphical vehicle representation.
-HomeScreen "1" *-- "1" VehicleRepresentation
-' The representation is rendered based on the Vehicle model.
-VehicleRepresentation ..> Vehicle : uses
+' --- Presenter Dependencies (MVP/MVVM Pattern) ---
+' The Presenter orchestrates data fetching and formatting for the view.
+HomeScreenPresenter ..> VehicleBackendAPI : fetches data via
+HomeScreenPresenter ..> User : gets current user profile
+HomeScreenPresenter ..> OSService : triggers feedback
 
-' --- Vehicle Domain Model Composition ---
-' Vehicle is a Façade that is composed of its core components.
-Vehicle "1" *-- "1" Battery
-Vehicle "1" *-- "1" ClimateControlSystem
-Vehicle "1" *-- "1" Range : contains calculated
+' The Presenter uses domain models to format display data, addressing the unit conversion requirement.
+HomeScreenPresenter "1" o-- "1" VehicleStatus : formats data from
+HomeScreenPresenter "1" o-- "1" UserProfile : applies preferences from
 
-' --- Dependencies and Data Usage ---
-' HomeScreen uses UserPreferences to request data in the correct format.
-HomeScreen ..> UserPreferences : uses
-' Enums are used by various classes.
-Vehicle --> "1" LockStatus
-Vehicle --> "1" ConnectionStatus
-Range --> "1" Unit
-UserPreferences --> "1" Unit
+' --- User and Vehicle Relationship ---
+User "1" -- "1..*" Vehicle : has access to
+
+' --- Vehicle Data Composition ---
+' VehicleStatus encapsulates the data required by the home screen (FR-HSS-*).
+Vehicle "1" ..> VehicleStatus : has its status represented by
+' The basis for the range calculation is explicitly modeled as per FR-HSS-004.
+VehicleStatus "1" *-- "1" RangeCalculationInput : is calculated using
+
+' --- API Interaction ---
+' The API is the source of truth for vehicle data.
+VehicleBackendAPI ..> VehicleStatus : returns
 
 @enduml

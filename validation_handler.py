@@ -14,6 +14,18 @@ class ValidationHandler:
     """Handles diagram validation and QA reporting."""
     
     @staticmethod
+    def _format_scope_violations(violations: List[str]) -> str:
+        """Format scope violations for QA report."""
+        if not violations or (len(violations) == 1 and not violations[0]):
+            return "**Scope Violations:** None detected ✅"
+        
+        result = "**⚠️ SCOPE VIOLATIONS DETECTED:**\n"
+        for violation in violations:
+            if violation:  # Skip empty strings
+                result += f"- {violation}\n"
+        return result
+    
+    @staticmethod
     def apply_diagram_penalties(metrics: Dict[str, Any], diagram_contents: Dict[str, str]) -> Dict[str, Any]:
         """
         Apply penalties to the overall score based on missing or failed diagrams.
@@ -120,11 +132,17 @@ class ValidationHandler:
 
 ## Validation Scores
 - **Overall Score:** {metrics.get('overall_score', 'N/A')}/10
+- **Scope Adherence Score:** {metrics.get('scope_adherence_score', 'N/A')}/10
 - **Consistency Score:** {metrics.get('consistency_score', 'N/A')}/10
 - **Completeness Score:** {metrics.get('completeness_score', 'N/A')}/10
 - **Quality Score:** {metrics.get('quality_score', 'N/A')}/10{penalty_info}
 
 ## Detailed Analysis
+
+### Scope Adherence Analysis
+{metrics.get('scope_adherence_analysis', 'No scope analysis provided')}
+
+{ValidationHandler._format_scope_violations(metrics.get('scope_violations', []))}
 
 ### Consistency Analysis
 {metrics.get('consistency_analysis', 'No analysis provided')}

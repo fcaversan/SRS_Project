@@ -2,42 +2,14 @@
 
 skinparam classAttributeIconSize 0
 hide empty members
+left to right direction
 
-class HomeScreen {
-  + updateView(vehicle: Vehicle, prefs: UserPreferences)
-}
-
-class VehicleRepresentation {
-  - vehicleImage: Image
-  + render()
-}
-
-class Vehicle {
-  - lockStatus: LockStatus
-  - ambientTemperature: float
-  - energyConsumptionTrends: List<float>
-  + getLockStatus(): LockStatus
-  + getCabinTemperature(): float
-  + isClimateControlActive(): boolean
-  + getCurrentSoC(): float
-  + getEstimatedRange(preferredUnit: Unit): float
-}
-
-class Battery {
-  - stateOfCharge: float
-  + getSoC(): float
-}
-
-class ClimateControlSystem {
-  - isActive: boolean
-  - interiorTemperature: float
-  + isActive(): boolean
-  + getTemperature(): float
-}
-
-class UserPreferences {
-  - preferredRangeUnit: Unit
-  + getPreferredUnit(): Unit
+' =============================================
+' Enums
+' =============================================
+enum UserRole {
+  PRIMARY
+  SECONDARY
 }
 
 enum LockStatus {
@@ -45,30 +17,242 @@ enum LockStatus {
   UNLOCKED
 }
 
-enum Unit {
-  MILES
-  KILOMETERS
+enum UnitSystem {
+  METRIC
+  IMPERIAL
 }
 
-' --- Relationships ---
+enum TempUnit {
+  CELSIUS
+  FAHRENHEIT
+}
 
-' A HomeScreen displays information about one Vehicle.
-HomeScreen "1" o-- "1" Vehicle
+enum BatteryTempIndicator {
+  COLD
+  OPTIMAL
+  HOT
+}
 
-' A HomeScreen is composed of one graphical representation of the vehicle.
-HomeScreen "1" *-- "1" VehicleRepresentation
+enum ConnectorType {
+  TYPE1_J1772
+  TYPE2_MENNEKES
+  CHADEMO
+  CCS
+}
 
-' A Vehicle is composed of its core components.
-Vehicle "1" *-- "1" Battery
-Vehicle "1" *-- "1" ClimateControlSystem
+' =============================================
+' Main Application & User Package
+' =============================================
+package "Application & User" {
 
-' HomeScreen and Vehicle use UserPreferences to handle units.
-' This is a usage dependency.
-HomeScreen "1" ..> "1" UserPreferences : uses
-Vehicle "1" ..> "1" UserPreferences : uses
+  class VehicleConnectApp {
+    +main(): void
+    +authenticateUser(): void
+    +displayHomeScreen(): void
+    +showMapView(): void
+  }
 
-' Enum relationships
-Vehicle --> "1" LockStatus
-UserPreferences --> "1" Unit
+  class User {
+    -userId: UUID
+    -username: string
+    -email: string
+    +login(username, password): void
+    +logout(): void
+    +useBiometrics(): void
+  }
+
+  class UserProfile {
+    -distanceUnit: UnitSystem
+    -temperatureUnit: TempUnit
+    +setUnits(dist: UnitSystem, temp: TempUnit): void
+    +managePaymentMethods(): void
+  }
+  
+  class NotificationSettings {
+    -onChargingStatusChange: boolean
+    -onVehicleUnlocked: boolean
+    -onSentryEvent: boolean
+    +updateSettings(settings): void
+  }
+
+}
+
+' =============================================
+' Vehicle Domain Package
+' =============================================
+package "Vehicle Domain" {
+
+  class Vehicle {
+    -vin: string
+    -modelName: string
+    -imageUrl: string
+    +lock(): void
+    +unlock(): void
+    +openFrontTrunk(): void
+    +openRearTrunk(): void
+    +honkAndFlash(): void
+    +setSentryMode(isActive: boolean): void
+    +startCharging(): void
+    +stopCharging(): void
+    +setChargingLimit(percentage: int): void
+    +sendDestinationToNav(destination: Location): void
+    +getTripHistory(): Trip[]
+  }
+
+  class VehicleStatus {
+    -stateOfCharge: float
+    -estimatedRange: float
+    -lockStatus: LockStatus
+    -cabinTemperature: float
+    -isClimateActive: boolean
+    -lastUpdated: datetime
+  }
+
+  class VehicleHealth {
+    -odometer: float
+    -batteryTemperature: BatteryTempIndicator
+    -activeAlerts: string[]
+  }
+
+  class Tire {
+    -position: string
+    -pressure: float
+    -isPressureInRange: boolean
+  }
+
+  class ClimateControlSystem {
+    -targetTemperature: float
+    -isHeatedSeatsOn: boolean
+    -isHeatedSteeringWheelOn: boolean
+    -isFrontDefrosterOn: boolean
+    -isRearDefrosterOn: boolean
+    +activate(): void
+    +deactivate(): void
+    +setTargetTemperature(temp: float): void
+    +setHeatedSeats(state: boolean): void
+    +setHeatedSteeringWheel(state: boolean): void
+  }
+
+}
+
+' =============================================
+' Security & Access Package
+' =============================================
+package "Security & Access" {
+
+  class DigitalKey {
+    -keyId: UUID
+    -role: UserRole
+    +unlockViaProximity(): void
+    +startViaProximity(): void
+    +revoke(): void
+  }
+
+  class KeyRestriction {
+    -maxSpeedLimit: int
+    -geoFence: Polygon
+  }
+
+  class SentryEvent {
+    -eventId: UUID
+    -timestamp: datetime
+    -videoFootageUrl: string
+  }
+}
+
+' =============================================
+' Features Package
+' =============================================
+package "Features" {
+
+  class ChargingSession {
+    -startTime: datetime
+    -estimatedCompletionTime: datetime
+    -chargingRateKW: float
+    -voltage: float
+    -amperage: float
+  }
+
+  class ChargingSchedule {
+    -scheduleId: UUID
+    -startTime: time
+    -readyByTime: time
+    -isActive: boolean
+    +create(): void
+    +edit(details): void
+    +delete(): void
+  }
+
+  class ChargingStation {
+    -stationId: UUID
+    -location: GpsCoordinates
+    -connectorTypes: ConnectorType[]
+    -powerLevelKW: float
+    -isAvailable: boolean
+  }
+
+  class Trip {
+    -tripId: UUID
+    -destination: GpsCoordinates
+    -route: MapRoute
+    -energyConsumptionKWh: float
+    -energyRecapturedKWh: float
+  }
+
+  class TripPlanner {
+    +calculateRouteWithCharging(start, end, vehicleStatus): Trip
+  }
+}
+
+' =============================================
+' External Interfaces Package
+' =============================================
+package "External Interfaces" {
+  interface VehicleBackendAPI
+  interface MappingService
+  interface PaymentGateway
+  interface OSService
+}
+
+' =============================================
+' Relationships
+' =============================================
+
+' --- Application & User ---
+VehicleConnectApp "1" o-- "0..1" User : (current session for)
+User "1" *-- "1" UserProfile : manages
+UserProfile "1" *-- "1" NotificationSettings : configures
+
+' --- User, Vehicle, Keys ---
+User "1" o-- "0..*" DigitalKey : owns
+Vehicle "1" *-- "1..*" DigitalKey : is accessed by
+' A primary user can invite others, which creates DigitalKey objects
+User "1" -- "1..*" Vehicle : has access to
+
+' --- Key Restrictions ---
+DigitalKey "1" o-- "0..1" KeyRestriction : can have
+
+' --- Vehicle Composition ---
+Vehicle "1" *-- "1" VehicleStatus : has
+Vehicle "1" *-- "1" VehicleHealth : reports
+Vehicle "1" *-- "1" ClimateControlSystem : controls
+VehicleHealth "1" *-- "4" Tire : monitors
+
+' --- Vehicle and Feature Objects ---
+Vehicle "1" o-- "0..1" ChargingSession : has active
+Vehicle "1" *-- "0..*" ChargingSchedule : uses
+Vehicle "1" *-- "0..*" SentryEvent : records
+Vehicle "1" o-- "0..*" Trip : has history of
+
+' --- Application Dependencies ---
+VehicleConnectApp ..> VehicleBackendAPI : communicates with
+VehicleConnectApp ..> MappingService : uses for
+VehicleConnectApp ..> PaymentGateway : uses for
+VehicleConnectApp ..> OSService : utilizes
+TripPlanner ..> MappingService : uses
+TripPlanner ..> VehicleBackendAPI : uses
+
+' --- Feature Interactions ---
+VehicleConnectApp o-- "1" TripPlanner : provides
 
 @enduml

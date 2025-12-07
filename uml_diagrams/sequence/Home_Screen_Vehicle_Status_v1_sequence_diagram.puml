@@ -1,6 +1,5 @@
 @startuml
-' v1.0
-!theme materia
+!theme sketchy-outline
 
 title Home_Screen_Vehicle_Status_v1 Interactions
 
@@ -11,48 +10,59 @@ participant "App" as App
 participant "API" as API
 database "DB" as DB
 
-User -> App: Opens application / Navigates to Home Screen
+User -> App: Launches or foregrounds the application
 activate App
 
-App -> API: GET /vehicle/{id}/status
-activate API
+App -> App: Initiate fetch for latest vehicle status
 
-alt Successful API Response
+alt Happy Path: Successful Status Fetch
 
-    API -> DB: Query for latest vehicle telemetry data\n(SoC, consumption trends, temps, lock status, climate status)
+    App -> API: GET /vehicle/status
+    activate API
+
+    API -> DB: Query for latest vehicle status record
     activate DB
+    DB --> API: Return vehicle status data \n(SoC, range, lock_status, temp, etc.)
+    deactivate DB
 
-    alt Fresh Vehicle Data Available
-        DB --> API: Return latest vehicle telemetry data
-        deactivate DB
-
-        API -> API: Calculate estimated range\n(based on SoC, consumption, ambient temp)
-
-        API --> App: 200 OK - VehicleStatusResponse\n{\n  soc: 85,\n  range: "250 mi",\n  isLocked: true,\n  cabinTemp: "72°F",\n  isClimateOn: false,\n  ... \n}
-        deactivate API
-
-        App -> App: Render Home Screen UI components
-        App --> User: Display full vehicle status:\n- SoC Percentage (FR-HSS-001)\n- Visual Battery Level (FR-HSS-002)\n- Estimated Range (FR-HSS-003)\n- Lock Status (FR-HSS-005)\n- Cabin Temperature (FR-HSS-006)\n- Climate Status (FR-HSS-007)\n- Vehicle Graphic (FR-HSS-008)
-
-    else Vehicle Data is Stale (e.g., vehicle offline)
-        DB --> API: Return last known data with timestamp
-        deactivate DB
-
-        API --> App: 200 OK - StaleVehicleStatusResponse\n{\n  last_updated: "2 hours ago",\n  last_known_status: { ... }\n}
-        deactivate API
-
-        App -> App: Render Home Screen with stale data indicator
-        App --> User: Display last known vehicle status\nwith a message "Status last updated 2 hours ago"
-
-    end
-
-else API Call Fails (Network Error / Server Error)
-    API --> App: 503 Service Unavailable / Network Timeout
+    API --> App: 200 OK \n{ "soc": 85, "range": 250, "locked": true, ... }
     deactivate API
 
-    App -> App: Handle API error
-    App --> User: Display error message:\n"Unable to fetch latest vehicle status.\nPlease check your connection."
+    App -> App: Parse vehicle status data
+    App -> User: Display updated Home Screen \n(SoC, range, lock status, temp, etc.) \n(FR-HSS-001 to FR-HSS-008)
 
+else Sad Path: API Error or Stale Data from Server
+
+    App -> API: GET /vehicle/status
+    activate API
+
+    alt API cannot reach database
+        API -> DB: Query for latest vehicle status record
+        activate DB
+        DB --> API: Error / Timeout
+        deactivate DB
+        API --> App: 500 Internal Server Error
+    else Data in DB is stale (older than 60s per NFR-PERF-002)
+        API -> DB: Query for latest vehicle status record
+        activate DB
+        DB --> API: Return stale vehicle status data
+        deactivate DB
+        API --> App: 200 OK with stale data flag \n{ "status": "stale", "last_updated": "...", ... }
+    end
+    
+    deactivate API
+
+    App -> App: Display "Failed to update status" message
+    App -> App: Display cached vehicle data with "last updated" timestamp \n(per NFR-REL-002)
+    App -> User: Show Home Screen with cached data and error indicator
+
+else Sad Path: No Network Connectivity on Device
+
+    App -> App: Detects no network connection
+    App -> User: Display "Device is Offline" message
+    App -> App: Display cached vehicle data with "last updated" timestamp \n(per NFR-REL-002)
+    App -> User: Show Home Screen with cached data and offline indicator
+    
 end
 
 deactivate App

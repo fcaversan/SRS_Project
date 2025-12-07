@@ -1,0 +1,23 @@
+<map id="Home_Screen_Vehicle_Status_v3_class_diagram_map" name="Home_Screen_Vehicle_Status_v3_class_diagram_map">
+<area shape="rect" id="id1" href="FR-HSS-*" title="FR-HSS-*" alt="" coords="319,526,381,544"/>
+<area shape="rect" id="id2" href="FR-HSS-001" title="FR-HSS-001" alt="" coords="587,873,667,891"/>
+<area shape="rect" id="id3" href="FR-HSS-004" title="FR-HSS-004" alt="" coords="725,1114,805,1132"/>
+<area shape="rect" id="id4" href="FR-HSS-004" title="FR-HSS-004" alt="" coords="698,1132,778,1149"/>
+<area shape="rect" id="id5" href="FR-HSS-008" title="FR-HSS-008" alt="" coords="696,723,776,740"/>
+<area shape="rect" id="id6" href="FR-HSS-006" title="FR-HSS-006" alt="" coords="656,926,736,943"/>
+<area shape="rect" id="id7" href="FR-HSS-008" title="FR-HSS-008" alt="" coords="716,705,796,723"/>
+<area shape="rect" id="id8" href="FR-HSS-004" title="FR-HSS-004" alt="" coords="751,979,831,996"/>
+<area shape="rect" id="id9" href="FR-HSS-005" title="FR-HSS-005" alt="" coords="1993,304,2073,322"/>
+<area shape="rect" id="id10" href="FR-HSS-005" title="FR-HSS-005" alt="" coords="2013,322,2093,339"/>
+<area shape="rect" id="id11" href="FR-HSS-007" title="FR-HSS-007" alt="" coords="615,943,695,961"/>
+<area shape="rect" id="id12" href="FR-HSS-005" title="FR-HSS-005" alt="" coords="604,908,684,926"/>
+<area shape="rect" id="id13" href="FR-HSS-003" title="FR-HSS-003" alt="" coords="619,891,699,908"/>
+<area shape="rect" id="id14" href="FR-USR-001" title="FR-USR-001" alt="" coords="1115,675,1196,693"/>
+<area shape="rect" id="id15" href="FR-USR-001" title="FR-USR-001" alt="" coords="2043,85,2124,103"/>
+<area shape="rect" id="id16" href="FR-USR-001" title="FR-USR-001" alt="" coords="2051,103,2132,120"/>
+<area shape="rect" id="id17" href="FR-USR-001" title="FR-USR-001" alt="" coords="2272,103,2353,120"/>
+<area shape="rect" id="id18" href="FR-USR-001" title="FR-USR-001" alt="" coords="2242,85,2323,103"/>
+<area shape="rect" id="id19" href="FR-USR-001" title="FR-USR-001" alt="" coords="1128,693,1209,710"/>
+<area shape="rect" id="id20" href="NFR-PERF-002," title="NFR-PERF-002," alt="" coords="598,961,687,979"/>
+<area shape="rect" id="id21" href="NFR-PERF-002," title="NFR-PERF-002," alt="" coords="1285,335,1373,353"/>
+</map>

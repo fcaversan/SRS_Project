@@ -1,76 +1,82 @@
 @startuml
-title Home Screen Data Loading Activity Diagram (Iteration 3)
-|Client App|
+' Diagram refactored by a senior UML architect based on QA feedback.
+' ITERATION 3: Improved to explicitly model the different UI states (Loading, Live, Stale, Offline)
+' as suggested by the QA analysis, enhancing completeness and quality.
+' This diagram follows MODERN PlantUML syntax.
+
+title Vehicle Connect: Home Screen Status Display Flow
+
 start
-:User navigates to Home Screen;
-:Show loading state (e.g., spinner);
-:Request vehicle status from backend
-(GET /api/v1/vehicle/status);
 
-|#Technology|Backend API|
-:Receive request;
-:Authenticate user & identify vehicle;
-if (Authentication failed?) then (yes)
-  :Return 401 Unauthorized;
-  -->|Client App|
-  :Display "Authentication error" message;
-  stop
-endif
+:Launch Vehicle Connect App;
 
-note right: Parallel data fetching from vehicle data sources/cache
-fork
-  :Fetch Battery Data
-  (SoC, recent consumption);
-fork again
-  :Fetch Environment Data
-  (ambient temperature);
-fork again
-  :Fetch Vehicle State Data
-  (lock status, cabin temp, climate active);
-fork again
-  :Fetch Vehicle Visual Asset Identifier;
-end fork
+partition Authentication {
+  :Require user authentication (Biometric/PIN);
+  ' NFR-SEC-001
+  if (Authentication successful?) then (yes)
+    :Display Home Screen UI Shell;
+    ' App must launch to a usable screen within 4s (NFR-PERF-003)
+  else (no)
+    :Display 'Authentication Failed' message;
+    stop
+  endif
+}
 
-:Calculate Estimated Range;
-note left
-  Architectural Decision: Range calculation logic (FR-HSS-004)
-  is centralized on the backend to ensure consistency
-  across all clients and platforms.
-end note
+partition "Home Screen Data Flow" {
+    repeat
+        :Display 'Loading' Indicator;
 
-:Assemble `VehicleStatusDTO`;
-:Send 200 OK Response with `VehicleStatusDTO`;
+        fork
+            :Fetch real-time vehicle status from Backend API;
+        fork again
+            :Fetch user profile settings (units);
+            note left
+                Get preferred units for temp (°F/°C)
+                and distance (miles/km) per FR-USR-001.
+            end note
+        end fork
 
-|Client App|
-:Receive API Response;
-if (Response is 200 OK?) then (yes)
-  :Hide loading state;
-  :Parse `VehicleStatusDTO`;
-  :Update View Model with DTO data;
-  note right: UI components are updated in parallel from the View Model
-  fork
-    'Battery and Range UI
-    :Display SoC & pre-calculated Range
-    (FR-HSS-001, FR-HSS-003);
-    :Update visual battery level
-    (FR-HSS-002);
+        if (API communication successful?) then (yes)
+            :Apply user's preferred units to status data;
+            ' Implements FR-USR-001
 
-  fork again
-    'Security and Climate UI
-    :Display Lock, Temperature & Climate status
-    (FR-HSS-005, FR-HSS-006, FR-HSS-007);
+            if (Vehicle data is fresh?) then (yes)
+            ' Data timestamp is <= 60s old (NFR-PERF-002)
+                :Display 'Live Status' State;
+                note right
+                    Populate UI with fresh data:
+                    - SoC & Battery Visual (FR-HSS-001, 002)
+                    - Estimated Range (FR-HSS-003, 004)
+                    - Lock Status (FR-HSS-005)
+                    - Cabin Temp & Climate (FR-HSS-006, 007)
+                    - Vehicle Graphic (FR-HSS-008)
+                end note
+            else (no)
+                :Display 'Stale Status' State;
+                 note right
+                    Show last known data with a clear
+                    'last updated' timestamp.
+                    This addresses NFR-PERF-002 by making
+                    the user aware of the data's age.
+                end note
+            endif
+        else (no - Network/API Error)
+            :Display 'Offline' State;
+            note right
+                Show cached data if available, otherwise
+                display a network error message.
+                Handles graceful failure per NFR-REL-002.
+            end note
+        endif
 
-  fork again
-    'Vehicle Visual UI
-    :Load vehicle graphical asset
-    (FR-HSS-008);
-  end fork
-  :Render fully updated Home Screen;
+        :User views status and can interact with UI;
 
-else (no / API error)
-  :Hide loading state;
-  :Display appropriate error message
-  (e.g., "Could not connect to vehicle");
-endif
+    repeat while (User initiates status refresh (e.g., Pull-to-Refresh)?) is (yes)
+    -> Refresh Data;
+}
+
+:User navigates away or closes app;
+
 stop
+
 @enduml

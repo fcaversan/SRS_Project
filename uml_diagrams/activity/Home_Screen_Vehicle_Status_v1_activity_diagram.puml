@@ -1,31 +1,105 @@
 @startuml
+' Created by a senior software architect to represent the logic flow of the Vehicle Connect Mobile App SRS.
+' This diagram follows MODERN PlantUML syntax as required.
+
 start
-:User navigates to Home Screen;
-:Request latest vehicle status data;
-fork
-  'Battery and Range Processing
-  :Fetch State of Charge (SoC), consumption trends, and ambient temperature;
-  :Calculate estimated vehicle range;
-  if (User's preferred unit is Kilometers?) then (yes)
-    :Format range in KM;
+
+:Launch Vehicle Connect App;
+:Require user authentication (Biometric/PIN);
+' NFR-SEC-001: User authentication shall be required upon app launch
+
+if (Authentication successful?) then (yes)
+  :Display Home Screen;
+  :Fetch and show real-time vehicle status;
+  ' FR-HSS: SoC, Range, Lock Status, Cabin Temp
+
+  if (User selects a primary function?) then (yes)
+    if (Select 'Remote Controls'?) then (yes)
+      :Display Remote Controls interface;
+      if (Activate Climate Control?) then (yes)
+        :User sets target cabin temperature;
+        ' FR-RMC-004
+        if (Vehicle is plugged in?) then (no)
+          :Display warning: 'Activating climate will consume battery range';
+          ' FR-RMC-007
+          if (User confirms to proceed?) then (yes)
+            :Send 'Start Climate' command to vehicle;
+            ' FR-RMC-003
+          else (no)
+            :Cancel climate activation;
+          endif
+        else (yes)
+          :Send 'Start Climate' command to vehicle;
+        endif
+        :Receive and display command confirmation in UI within 3s;
+        ' NFR-PERF-001
+      else if (Lock/Unlock Vehicle?) then (no)
+        :User taps 'Lock' or 'Unlock' button;
+        ' FR-RMC-001 / FR-RMC-002
+        :Send command to vehicle via API;
+        :Receive command confirmation;
+        :Provide haptic feedback on device for success;
+        ' FR-RMC-010
+        :Update lock status icon on UI;
+      else (Other remote command)
+        :Execute other remote command (e.g., Open Trunk, Honk Horn);
+        ' FR-RMC-008 / FR-RMC-009
+        :Display command confirmation;
+      endif
+
+    else if (Select 'Charging Management'?) then (no)
+      :Display Charging Management screen;
+      if (User initiates 'Start/Stop Charging'?) then (yes)
+        ' FR-CHG-001 / FR-CHG-002
+        if (Vehicle is plugged in?) then (yes)
+          :Send 'Start Charging' or 'Stop Charging' command;
+          :Display updated charging status;
+          ' FR-CHG-003: SoC, time to completion, rate
+        else (no)
+          :Display message 'Vehicle not plugged in';
+        endif
+      else if (User selects 'Find Stations'?) then (no)
+        :Display map of charging stations;
+        ' FR-CHG-006
+        :Provide filters for connector type and power level;
+        ' FR-CHG-007
+        :User selects a station to view details (availability, cost);
+        ' FR-CHG-008
+      else if (User selects 'Set Schedule'?) then (no)
+        :Display interface to create/edit charging schedules;
+        ' FR-CHG-005
+      endif
+
+    else if (Select 'Security & Access'?) then (no)
+      :Display Security screen;
+      if (User toggles 'Sentry Mode'?) then (yes)
+        :Send command to activate/deactivate Sentry Mode;
+        ' FR-SEC-005
+        :Display confirmation;
+      else if (View Sentry Events?) then (no)
+        ' This flow is typically initiated by a push notification (FR-SEC-006)
+        :Fetch and display list of triggered Sentry events;
+        :Allow user to select and view recorded footage;
+        ' FR-SEC-007
+      else if (Manage Digital Keys?) then (no)
+        :Display list of users with digital key access;
+        :Allow primary user to invite a new user or revoke access;
+        ' FR-SEC-002 / FR-SEC-003
+      endif
+    endif
+
+    :Return to Home Screen;
+
   else (no)
-    :Format range in Miles;
+    :User reviews vehicle status and closes app;
   endif
-  :Format SoC as percentage value;
-  :Generate visual representation of battery level from SoC;
 
-fork again
-  'Security and Climate Processing
-  :Fetch vehicle lock status;
-  :Fetch interior cabin temperature;
-  :Fetch climate control activity status;
+else (no)
+  :Display 'Authentication Failed' message;
+endif
 
-fork again
-  'Visual Asset Processing
-  :Load graphical representation of user's vehicle;
+:User exits the application;
 
-fork end
-:Assemble all data components for display;
-:Render Home Screen with all vehicle information;
 stop
+
 @enduml

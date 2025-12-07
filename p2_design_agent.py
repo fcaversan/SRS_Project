@@ -891,30 +891,36 @@ GENERATED DIAGRAMS:
 {diagram_contents.get('activity', '**NOT GENERATED** - This diagram was not successfully created.')}
 
 VALIDATION CRITERIA:
-1. Consistency: Do the successfully generated diagrams contradict each other?
-2. Completeness: Do the generated diagrams cover the requirements they represent?
-3. Quality: Are the generated diagrams syntactically correct and follow UML best practices?
-4. Gap Analysis: What is missing or could be improved?
+1. Scope Adherence: Do the diagrams model ONLY the requirements in this specific slice? (Critical - check for scope drift)
+2. Consistency: Do the successfully generated diagrams contradict each other?
+3. Completeness: Do the generated diagrams cover the requirements they represent?
+4. Quality: Are the generated diagrams syntactically correct and follow UML best practices?
+5. Gap Analysis: What is missing or could be improved WITHIN THIS REQUIREMENTS SLICE?
 
 IMPORTANT INSTRUCTIONS:
 - Only analyze diagrams that were successfully generated (not marked as "NOT GENERATED")
 - Score proportionally based on what was actually created
 - If a diagram was not generated, do not penalize other diagrams for inconsistency with it
 - Focus on the quality and coverage of the diagrams that do exist
+- CRITICAL: Detect scope violations - if diagrams model features NOT in the requirements slice, report this as a major issue
+- Penalize diagrams that drift into other feature areas or requirement sections
 
 **OUTPUT FORMAT:**
 Please provide your analysis in strict JSON format with the following structure:
 {{
+    "scope_adherence_analysis": "Analysis of whether diagrams stay within the requirements slice scope...",
     "consistency_analysis": "Analysis of consistency between successfully generated diagrams...",
     "completeness_analysis": "Analysis of how well generated diagrams cover requirements...",
     "quality_analysis": "Assessment of generated diagram quality and syntax...",
-    "gap_analysis": "What diagrams are missing and what could be improved...",
+    "gap_analysis": "What diagrams are missing and what could be improved WITHIN this slice...",
+    "scope_adherence_score": 10,  // Integer 0-10 (10 = perfect scope, 0 = completely off-topic)
     "consistency_score": 8,  // Integer 0-10 (based on generated diagrams only)
     "completeness_score": 9, // Integer 0-10 (proportional to generated vs total)
     "quality_score": 8,      // Integer 0-10 (based on generated diagrams only)
     "overall_score": 8,      // Integer 0-10 (average of above, proportional)
-    "recommendations": ["List of specific recommendations for improvement..."],
-    "diagrams_evaluated": ["list", "of", "successfully", "generated", "diagram", "types"]
+    "recommendations": ["List of specific recommendations for improvement WITHIN this slice..."],
+    "diagrams_evaluated": ["list", "of", "successfully", "generated", "diagram", "types"],
+    "scope_violations": ["List any features/scenarios modeled that are NOT in this requirements slice"]
 }}
 
 Ensure the output is valid JSON. Do not include markdown formatting (like ```json) around the output.
@@ -1204,7 +1210,7 @@ You are a senior UML architect and design improvement specialist. Your task is t
 
 ITERATION: {iteration_num}
 
-ORIGINAL REQUIREMENTS:
+ORIGINAL REQUIREMENTS SLICE:
 {requirements}
 
 CURRENT {diagram_name.upper()} DIAGRAM (PlantUML):
@@ -1243,16 +1249,25 @@ TASK: Generate an IMPROVED {diagram_name} Diagram that addresses the QA feedback
 
 CRITICAL REQUIREMENTS:
 1. Address ALL identified gaps and recommendations
-2. Maintain consistency with the original requirements
-3. Improve completeness by covering all requirement aspects
-4. Enhance quality by following UML best practices
-5. Keep the diagram readable and well-structured
+2. STAY STRICTLY WITHIN THE ORIGINAL REQUIREMENTS SLICE - Do NOT model features from other requirement sections
+3. Maintain consistency with the original requirements slice specified above
+4. Improve completeness by covering all aspects of ONLY the requirements in this slice
+5. Enhance quality by following UML best practices
+6. Keep the diagram readable and well-structured
+
+SCOPE ENFORCEMENT:
+- You are refining a diagram for THIS SPECIFIC requirements slice only
+- Do NOT add scenarios, features, or flows from other requirement sections
+- Do NOT replace the current diagram with an entirely different scenario
+- REFINE and IMPROVE the existing diagram's coverage of these specific requirements
+- If recommendations mention gaps, fill them within the same requirements scope
 
 IMPORTANT INSTRUCTIONS:
 - Generate ONLY PlantUML code - no explanations, comments, or additional text
 - Start with @startuml and end with @enduml
 - Use proper PlantUML syntax for {diagram_type} diagrams
 - Make meaningful improvements, don't just copy the current diagram
+- Improve the SAME scenario, don't switch to a different one
 
 Generate the improved {diagram_name} Diagram now:
 """

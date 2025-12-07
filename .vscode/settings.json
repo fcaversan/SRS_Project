@@ -2,5 +2,16 @@
     "plantuml.java": "java",
     "plantuml.jar": "C:\\Projects\\SRS_Project\\plantuml\\plantuml.jar",
     "plantuml.previewAutoUpdate": true,
-    "plantuml.render": "Local"
+    "plantuml.render": "Local",
+    "chat.promptFilesRecommendations": {
+        "speckit.constitution": true,
+        "speckit.specify": true,
+        "speckit.plan": true,
+        "speckit.tasks": true,
+        "speckit.implement": true
+    },
+    "chat.tools.terminal.autoApprove": {
+        ".specify/scripts/bash/": true,
+        ".specify/scripts/powershell/": true
+    }
 }
